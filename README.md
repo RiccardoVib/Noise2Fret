@@ -4,10 +4,11 @@ This code repository is for the article _Playability-Aware Audio-To-Tablature Tr
 
 This repository contains all the necessary utilities to use our architecture. Find the code located inside the "./src" folder, and the weights of pre-trained models inside the "./weights" folder
 
-<figure>
+<p align="center">
 <img src="./architecture.jpg" width="800"/>
- <figcaption>Figure 1: Overview of the proposed architecture. The tablature tensor ($T \times S \times F$) is first projected into a continuous embedding space ($T \times SE$) via a learned embedding table, then corrupted with Gaussian noise according to the diffusion forward process. The resulting noisy representation is processed by a 1D convolutional U-Net comprising three encoder stages at channel widths $C_1$, $2C_1$, and $4C_1$, a bottleneck at $8C_1$ with self-attention, and a symmetric decoder with skip connections restoring the sequence to its original resolution. Audio, spectral magnitude, spectral flux, and brightness features are injected as conditioning signals at each resolution level. The decoder reconstructs the predicted embedding ($T \times SE$), which is decoded back to per-string class logits ($T \times S \times F$).</figcaption>
-</figure>
+ <br/>
+  <em>Figure 1: Overview of the proposed architecture. The tablature tensor ($T \times S \times F$) is first projected into a continuous embedding space ($T \times SE$) via a learned embedding table, then corrupted with Gaussian noise according to the diffusion forward process. The resulting noisy representation is processed by a 1D convolutional U-Net comprising three encoder stages at channel widths $C_1$, $2C_1$, and $4C_1$, a bottleneck at $8C_1$ with self-attention, and a symmetric decoder with skip connections restoring the sequence to its original resolution. Audio, spectral magnitude, spectral flux, and brightness features are injected as conditioning signals at each resolution level. The decoder reconstructs the predicted embedding ($T \times SE$), which is decoded back to per-string class logits ($T \times S \times F$).
+   </p>
  
  ### Folder Structure
 
