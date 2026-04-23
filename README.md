@@ -36,7 +36,8 @@ pip install -r requirements.txt
 To train models, use the ```starter.py``` script or via SSH with ```run.sh```.
 Ensure you have loaded the dataset into the chosen datasets folder.
 
-Available Options
+### Available Options
+
 --data_dir - Root directory where the datasets are stored [str] (default="./data")
 
 --model_path - Path to save or load the model checkpoint [str] (default="./models/model.pt")
@@ -57,7 +58,7 @@ Available Options
 
 --lr - Initial learning rate [float] (default=3e-4)
 
---losses_str - Comma-separated list of loss functions to use [str] (default=[""])
+--losses_str - Comma-separated list of loss functions to use [lst[str]] (default=[""])
  
 -- train_model - When True, train the model before test [bool] (default=False)
 
