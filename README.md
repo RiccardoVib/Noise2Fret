@@ -4,7 +4,7 @@ This code repository is for the article _Playability-Aware Audio-To-Tablature Tr
 
 This repository contains all the necessary utilities to use our architecture. Find the code located inside the "./src" folder, and the weights of pre-trained models inside the "./weights" folder
 
-<img src="./architecture.jpg" width="600"/>
+<img src="./architecture.jpg" width="800"/>
 
 ### Folder Structure
 
