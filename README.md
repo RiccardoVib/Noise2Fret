@@ -64,7 +64,7 @@ Ensure you have loaded the dataset into the chosen datasets folder.
 
 Example training case: 
 ```
-cd ./
+cd ./src
 python starter.py \
   --data_dir ./data \
   --model_path ./models/my_model.pt \
