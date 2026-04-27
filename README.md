@@ -9,6 +9,17 @@ This repository contains all the necessary utilities to use our architecture. Fi
  <br/>
   <em>Figure 1: Overview of the proposed architecture. The tablature tensor ($T \times S \times F$) is first projected into a continuous embedding space ($T \times SE$) via a learned embedding table, then corrupted with Gaussian noise according to the diffusion forward process. The resulting noisy representation is processed by a 1D convolutional U-Net comprising three encoder stages at channel widths $C_1$, $2C_1$, and $4C_1$, a bottleneck at $8C_1$ with self-attention, and a symmetric decoder with skip connections restoring the sequence to its original resolution. Audio, spectral magnitude, spectral flux, and brightness features are injected as conditioning signals at each resolution level. The decoder reconstructs the predicted embedding ($T \times SE$), which is decoded back to per-string class logits ($T \times S \times F$).
    </p>
+
+| Model | # Params | FLOPs |
+|-------|----------|-------|
+| Noise2Fret | 15,028,320 | 340,979,584 |
+| TabCNN [1] | 833,982 | 3,358,920,576 |
+| FretNet [2] | 8,439,486 | 17,351,470,080 |
+
+**Table:** Computational complexity of the models considered in this study, reported as number of trainable parameters and floating-point operations per second (FLOPs).
+
+[1] Wiggins and Y. E. Kim, “Guitar tablature estimation with a convolutional neural network.” in ISMIR, 2019, pp. 284–291
+[2] F. Cwitkowitz, T. Hirvonen, and A. Klapuri, “Fret-net: Continuous-valued pitch contour streaming for polyphonic guitar tablature transcription,” in Proceedings of IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP), 2023.
  
  ### Folder Structure
 
