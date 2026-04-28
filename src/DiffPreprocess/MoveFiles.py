@@ -1,16 +1,10 @@
-#!/usr/bin/env python3
-# MoveOutputFiles.py
-# Post-processing script: mirrors item_XX structure under a new root
-# and MOVES all .csv and .npy files there. Original folders are left
-# intact with only their original files (e.g. .wav, .gp5).
-
 import os
 import shutil
 from pathlib import Path
 from Code.Utils.utils import find_folder_upward
 
 # ── Config ────────────────────────────────────────────────────────────────────
-SPLITS = ["GOAT", "train", "test", "Validation"]
+SPLITS = ["train", "test"]
 EXTENSIONS = ["*.csv", "*.npy"]
 # Set to True to copy instead of move (non-destructive)
 COPY_ONLY = False
@@ -67,20 +61,3 @@ def mirror_and_move(src_root: str, dst_root: str, copy_only: bool = False):
             print(f"  {action_name} (root): {src_file.name} → {dst_root.name}/{src_file.name}")
 
     print(f"\n  Done: {src_root.name} → {dst_root.name}")
-
-
-if __name__ == "__main__":
-    current_dir = Path(os.getcwd())
-    files_dir = find_folder_upward(folder_name="Files", start_path=current_dir)
-
-    SRC_BASE = files_dir / "GOAT_orig"
-    DST_BASE = files_dir / "GOAT_processed"
-
-    for split in SPLITS:
-        src = SRC_BASE / split
-        dst = DST_BASE / split
-        if not src.exists():
-            print(f"[skip] {src} does not exist")
-            continue
-        print(f"\n[{split}]  {src}  →  {dst}")
-        mirror_and_move(src, dst, copy_only=COPY_ONLY)
