@@ -77,39 +77,3 @@ class UniformDistribution(Distribution):
     def __call__(self, num_samples: int, device: torch.device = torch.device("cpu")):
         vmax, vmin = self.vmax, self.vmin
         return (vmax - vmin) * torch.rand(num_samples, device=device) + vmin
-
-def check_rqvae_reconstruction(diffusion_model, test_ids: torch.Tensor, verbose=True):
-    """
-    Test that the RQVAE round-trips correctly: token IDs → latent → token IDs.
-
-    Args:
-        diffusion_model: your DiffusionModel instance (rqvae must be loaded)
-        test_ids: LongTensor of shape (B, seq) with integer chord IDs
-    """
-    dm = diffusion_model
-    device = dm.device
-    x = test_ids.to(device)  # (B, seq)
-
-    # --- Encode: token IDs → quantized latent ---
-    latent = dm._encode(x)  # (B, seq, H)
-
-    # --- Decode: quantized latent → logits → argmax ---
-    chosen_ids, _ = dm._decode(latent)  # (B, seq)
-
-    # --- Metrics ---
-    correct = (chosen_ids == x).float()
-    token_acc = correct.mean().item()
-    seq_acc = correct.all(dim=-1).float().mean().item()  # full sequence must match
-
-    if verbose:
-        print(f"Input IDs:        {x[0].tolist()}")
-        print(f"Reconstructed:    {chosen_ids[0].tolist()}")
-        print(f"Token accuracy:   {token_acc * 100:.2f}%")
-        print(f"Sequence accuracy:{seq_acc * 100:.2f}%  (all tokens correct)")
-        mismatches = (chosen_ids != x).nonzero(as_tuple=False)
-        if mismatches.numel() == 0:
-            print("✅ Perfect reconstruction!")
-        else:
-            print(f"❌ {mismatches.shape[0]} mismatch(es) at positions: {mismatches.tolist()}")
-
-    return token_acc, seq_acc, chosen_ids
