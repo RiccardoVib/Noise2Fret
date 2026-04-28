@@ -111,24 +111,6 @@ class DiffusionModel(nn.Module):
         pred_cls = logits.argmax(dim=-1)                   # (B, T, 6)
         return (pred_cls == target_ids).float().mean().item()
 
-    def tab_loss(self, pred, target):
-        # pred   : (B, T, 126) raw logits from model
-        # target : (B, T, 6, 22) one-hot
-        B, T = target.shape[:2]
-        logits = pred.view(B, T, N_STRINGS, N_CLASSES)  # (B, T, 6, 22)
-        target = target.view(B, T, N_STRINGS, N_CLASSES)  # (B, T, 6, 22)
-        target_idx = target.argmax(dim=-1)  # (B, T, 6)
-        # cross-entropy expects (B, C, ...) layout
-        loss = F.cross_entropy(
-            logits.permute(0, 3, 1, 2),  # (B, 22, T, 6)
-            target_idx,  # (B, T, 6)
-        )
-        # loss = F.cross_entropy(
-        #     logits.reshape(-1, N_CLASSES),  # (B*T*6, 21)
-        #     target_idx.reshape(-1),  # (B*T*6,)
-        # )
-        return loss
-
     @staticmethod
     def _build_pc_frets(tab: torch.Tensor):
         """
@@ -218,14 +200,13 @@ class DiffusionModel(nn.Module):
         if "f" in losses_str:
             loss = loss + 0.1 * fret_loss
         if "p" in losses_str:
-            loss = loss + pc_loss
+            loss = loss + 0.1 * pc_loss
         if "c" in losses_str:
             loss = loss + cof_loss
         if "s" in losses_str:
             loss = loss + string_loss
         if "h" in losses_str:
             loss = loss + hs_loss
-        #loss = loss + 0.1 * fret_loss + pc_loss + cof_loss  # + string_loss + hs_loss
 
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
