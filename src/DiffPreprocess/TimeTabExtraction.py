@@ -356,27 +356,3 @@ def process_dataset_extraction(root_dir: str):
         writer.writeheader()
         writer.writerows(all_notes)
     print(f"\nDone. {len(all_notes)} total notes → {merged_csv}")
-
-
-if __name__ == "__main__":
-    # import argparse
-    # parser = argparse.ArgumentParser(description="Extract note onsets from GOAT .gp files")
-    # parser.add_argument("root_dir", help="Root directory of the GOAT dataset (contains item_X folders)")
-    # args = parser.parse_args()
-    # process_dataset(args.root_dir)
-    from pathlib import Path
-    from Code.Utils.utils import find_folder_upward
-
-    current_dir = Path(os.getcwd())
-    print(f"current_dir: {current_dir}")
-    files_dir = find_folder_upward(folder_name="Files", start_path=current_dir)
-
-    ROOT_DIR = files_dir / "GOAT_orig/GOAT/"
-    process_dataset_extraction(ROOT_DIR)
-    ROOT_DIR = files_dir / "GOAT_orig/train/"
-    process_dataset_extraction(ROOT_DIR)
-    ROOT_DIR = files_dir / "GOAT_orig/test/"
-    process_dataset_extraction(ROOT_DIR)
-    ROOT_DIR = files_dir / "GOAT_orig/Validation/"
-    process_dataset_extraction(ROOT_DIR)
-
