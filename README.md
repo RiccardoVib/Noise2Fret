@@ -26,13 +26,15 @@ This repository contains all the necessary utilities to use our architecture. Fi
 ```
 ./
 ├── src
+├── datapreprocess
 └── weights
 ```
 
 ### Contents
 
 1. [Datasets](#datasets)
-2. [How to Train and Run Inference](#how-to-train-and-run-inference)
+2. [How to Preprocess dataset](#how-to-preprocess-dataset)
+3. [How to Train and Run Inference](#how-to-train-and-run-inference)
 
 <br/>
 
@@ -41,6 +43,21 @@ This repository contains all the necessary utilities to use our architecture. Fi
 Datasets are here: 
 - [GuitarSet](https://zenodo.org/records/3371780)
 - [GOAT](https://zenodo.org/records/17706552)
+
+# How To Preprocess Dataset (GOAT)
+
+The script retrieves dataset information and automatically creates a new directory containing the following files for each item in the dataset:
+
+- .npz file — stores audio data
+
+- .csv file — stores metadata and tab information
+
+The output directory is generated at runtime and organized per dataset entry.
+
+```
+cd ./src/data_preprocess
+python BuildDataset.py
+```
 
 # How To Train and Run Inference 
 
