@@ -1,10 +1,3 @@
-"""
-Created on Tue Nov 2 08:14:08 2025
-
-@author: Riccardo Simionato
-
-"""
-
 import torch
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -122,7 +115,6 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
         train_losses, val_losses = [], []
         # Training loop
         for epoch in range(epochs):
-            #wait_for_allowed_time()
             train_batches = 0
             train_loss, val_loss = 0, 0
             model.train()
@@ -131,41 +123,15 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
                 audio = audio.to(diffusion.device)
                 token = token.to(diffusion.device)
                 prev_token = prev_token.to(diffusion.device)
+                
                 # Compute audio features before training step
-                if inject_feature_dim > 1:
-                    features = compute_audio_features(audio, sr=16000)
-                    if feat == "all":
-                        features = torch.cat(
-                            [features["cqt_mag"], features["stft_mag"], features["spectral_flux"],
-                             features["brightness"]], dim=-1)
-                    elif feat == "alls":
-                        features = torch.cat(
+                features = compute_audio_features(audio, sr=16000)
+            
+                features = torch.cat(
                             [features["stft_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
-                    elif feat == "allc":
-                        features = torch.cat(
-                            [features["cqt_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
-                    elif feat == "stft":
-                        features = features["stft_mag"]
-                    elif feat == "sf":
-                        features = features["spectral_flux"]
-                    elif feat == "b":
-                        features = features["brightness"]
-                    elif feat == "cqt":
-                        features = features["cqt_mag"]
-                    elif feat == "stft+sf":
-                        features = torch.cat(
-                            [features["stft_mag"], features["spectral_flux"]], dim=-1)
-                    elif feat == "stft+b":
-                        features = torch.cat(
-                            [features["stft_mag"], features["brightness"]], dim=-1)
-                    elif feat == "sf+b":
-                        features = torch.cat(
-                            [features["spectral_flux"], features["brightness"]], dim=-1)
-                else:
-                    features = audio
-
+                
                 loss = diffusion.train_step(optimizer=optimizer, batch=[token, prev_token, audio, features],
-                                            losses_str=losses_str)  # , criterion=loss_fn)
+                                            losses_str=losses_str)
                 train_loss += loss
                 train_batches += 1
 
@@ -183,38 +149,11 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
                         audio = audio.to(diffusion.device)
                         token = token.to(diffusion.device)
                         prev_token = prev_token.to(diffusion.device)
-                        if inject_feature_dim > 1:
-                            features = compute_audio_features(audio, sr=16000)
-                            if feat == "all":
-                                features = torch.cat(
-                                    [features["cqt_mag"], features["stft_mag"], features["spectral_flux"],
-                                     features["brightness"]], dim=-1)
-                            elif feat == "alls":
-                                features = torch.cat(
+                        features = compute_audio_features(audio, sr=16000)
+                
+                        features = torch.cat(
                                     [features["stft_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
-                            elif feat == "allc":
-                                features = torch.cat(
-                                    [features["cqt_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
-                            elif feat == "stft":
-                                features = features["stft_mag"]
-                            elif feat == "sf":
-                                features = features["spectral_flux"]
-                            elif feat == "b":
-                                features = features["brightness"]
-                            elif feat == "cqt":
-                                features = features["cqt_mag"]
-                            elif feat == "stft+sf":
-                                features = torch.cat(
-                                    [features["stft_mag"], features["spectral_flux"]], dim=-1)
-                            elif feat == "stft+b":
-                                features = torch.cat(
-                                    [features["stft_mag"], features["brightness"]], dim=-1)
-                            elif feat == "sf+b":
-                                features = torch.cat(
-                                    [features["spectral_flux"], features["brightness"]], dim=-1)
-                        else:
-                            features = audio
-
+                    
                         loss, acc = diffusion.val_step(batch=[token, prev_token, audio, features])
 
                         total_val_loss += loss
@@ -272,38 +211,11 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
 
                 # Generate and visualize samples
                 if ((epoch + 1) % 100 == 0 and epoch != epochs - 1) or epochs == 1:
-                    if inject_feature_dim > 1:
-                        features = compute_audio_features(audio, sr=16000)
-                        if feat == "all":
-                            features = torch.cat(
-                                [features["cqt_mag"], features["stft_mag"], features["spectral_flux"],
-                                 features["brightness"]], dim=-1)
-                        elif feat == "alls":
-                            features = torch.cat(
+                    features = compute_audio_features(audio, sr=16000)
+                   
+                    features = torch.cat(
                                 [features["stft_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
-                        elif feat == "allc":
-                            features = torch.cat(
-                                [features["cqt_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
-                        elif feat == "stft":
-                            features = features["stft_mag"]
-                        elif feat == "sf":
-                            features = features["spectral_flux"]
-                        elif feat == "b":
-                            features = features["brightness"]
-                        elif feat == "cqt":
-                            features = features["cqt_mag"]
-                        elif feat == "stft+sf":
-                            features = torch.cat(
-                                [features["stft_mag"], features["spectral_flux"]], dim=-1)
-                        elif feat == "stft+b":
-                            features = torch.cat(
-                                [features["stft_mag"], features["brightness"]], dim=-1)
-                        elif feat == "sf+b":
-                            features = torch.cat(
-                                [features["spectral_flux"], features["brightness"]], dim=-1)
-                    else:
-                        features = audio
-
+         
                     predicted_indices, predicted_tab = visualize_samples(token, prev_token, audio, features, diffusion)
 
                     # decode whole batch at once (shape B, maxevents)
@@ -333,52 +245,31 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
         json.dump(losses_dict, f)
     print(f"Losses saved to {filename}")
 
-    audios, tokens, predicted_tokens, top5_items = [], [], [], []
+
     # Visualize the diffusion process
     model.eval()
-
+    zero_token = torch.zeros(1, dataset.max_events, dataset.n_strings, dataset.n_classes, dtype=torch.float32)
+    zero_token[:, :, :, 0] = 1.0
     gt_chunks, pred_chunks = [], []
+    val_dataloader = torch.utils.data.DataLoader(dataset_val, batch_size=1, shuffle=False, pin_memory=True)
+                       
     with torch.no_grad():
         for audio, token, prev_token in tqdm(test_dataloader, desc=f"Test",
                                              disable=True):
             audio = audio.to(diffusion.device)
             token = token.to(diffusion.device)
-            prev_token = prev_token.to(diffusion.device)
+            # start_time = time.time()
 
-            if inject_feature_dim > 1:
-                features = compute_audio_features(audio, sr=16000)
-                if feat == "all":
-                    features = torch.cat(
-                        [features["cqt_mag"], features["stft_mag"], features["spectral_flux"], features["brightness"]],
-                        dim=-1)
-                elif feat == "alls":
-                    features = torch.cat(
-                        [features["stft_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
-                elif feat == "allc":
-                    features = torch.cat(
-                        [features["cqt_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
-                elif feat == "stft":
-                    features = features["stft_mag"]
-                elif feat == "sf":
-                    features = features["spectral_flux"]
-                elif feat == "b":
-                    features = features["brightness"]
-                elif feat == "cqt":
-                    features = features["cqt_mag"]
-                elif feat == "stft+sf":
-                    features = torch.cat(
-                        [features["stft_mag"], features["spectral_flux"]], dim=-1)
-                elif feat == "stft+b":
-                    features = torch.cat(
-                        [features["stft_mag"], features["brightness"]], dim=-1)
-                elif feat == "sf+b":
-                    features = torch.cat(
-                        [features["spectral_flux"], features["brightness"]], dim=-1)
+            if torch.equal(prev_token, zero_token):
+               prev_token = prev_token.to(diffusion.device)
             else:
-                features = audio
+               prev_token = predicted_indices
+
+            features = compute_audio_features(audio, sr=16000)
+            features = torch.cat(
+                    [features["stft_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
 
             predicted_indices, predicted_tab = visualize_samples(token, prev_token, audio, features, diffusion)
-            predicted_item, target_item = vectors_to_text_token(predicted_indices, token)
 
             # normalise both to integer IDs (B, T, 6) before storing
             gt_ids = token.argmax(dim=-1).cpu() if token.ndim == 4 else token.cpu()
@@ -395,57 +286,10 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
     avg = tab_metrics(all_gt, all_pred)
     out_path = model_path / f"metrics_Test.txt"
     print_tab_metrics(avg, save_path=str(out_path), prefix="Test set")
-
-    val_dataloader = torch.utils.data.DataLoader(dataset_val, batch_size=1, shuffle=False)
-    with torch.no_grad():
-        for audio, token, prev_token in tqdm(val_dataloader, desc=f"Test", disable=True):
-            audio = audio.to(diffusion.device)
-            token = token.to(diffusion.device)
-            prev_token = prev_token.to(diffusion.device)
-
-            if inject_feature_dim > 1:
-                features = compute_audio_features(audio, sr=16000)
-                if feat == "all":
-                    features = torch.cat(
-                        [features["cqt_mag"], features["stft_mag"], features["spectral_flux"], features["brightness"]],
-                        dim=-1)
-                elif feat == "alls":
-                    features = torch.cat(
-                        [features["stft_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
-                elif feat == "allc":
-                    features = torch.cat(
-                        [features["cqt_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
-                elif feat == "stft":
-                    features = features["stft_mag"]
-                elif feat == "sf":
-                    features = features["spectral_flux"]
-                elif feat == "b":
-                    features = features["brightness"]
-                elif feat == "cqt":
-                    features = features["cqt_mag"]
-                elif feat == "stft+sf":
-                    features = torch.cat(
-                        [features["stft_mag"], features["spectral_flux"]], dim=-1)
-                elif feat == "stft+b":
-                    features = torch.cat(
-                        [features["stft_mag"], features["brightness"]], dim=-1)
-                elif feat == "sf+b":
-                    features = torch.cat(
-                        [features["spectral_flux"], features["brightness"]], dim=-1)
-            else:
-                features = audio
-
-            predicted_indices, predicted_tab = visualize_samples(token, prev_token, audio, features, diffusion)
-            predicted_item, target_item = vectors_to_text_token(predicted_indices, token)
-            predicted_tokens.append(predicted_item[0])
-            tokens.append(target_item[0])
-
-    predicted_tokens = predicted_tokens[:5]
-    # audios = torch.cat(audios[:5], dim=0)
-    tokens = tokens[:5]
-    output_path = model_path / "predictions.txt"
-
-    print_results(tokens, predicted_tokens, output_path)
+                            
+    all_pred, all_gt = vectors_to_text_token(all_pred, all_gt)
+    output_path = model_path / "predictions_TEST.txt"
+    print_results(all_gt, all_pred, output_path)
 
     return 42
 
@@ -551,61 +395,30 @@ if __name__ == "__main__":
     script_dir = script_path.parent
     n_batches = 128
     noise_steps = 500
-    #noise_steps = 1
     epochs = 1000
-    #epochs = 1
     lr = 3e-4
-    inject_feature_dim = 515#, 514, 513
+    inject_feature_dim = 515
     use_pre = True
     embed_dim = 32
-    hidden_dims = [64, 64, 64, 64, 64, 64]
-    inject_feature_dims = [515, 513, 514, 514, 1, 1, 2]
-    inject_feature_dims = [515]
-    feats = ["all", "stft", "stft+sf", "stft+b", "sf", "b", "sf+b"]
-    feats = ["all"]
+    hidden_dims = 64
 
-    addtional_name = "_TabEmbPROVA01"
-
-    from itertools import combinations
-
-    elements = ["f", "p", "c", "s", "h"]
-    elements = [""]
-
-    losses_strs = []
-    for r in range(1, len(elements) + 1):
-        losses_strs.extend(list(c) for c in combinations(elements, r))
-
-    to_remove = [
-        ["f", "p", "c"],
-        ["f", "p", "c", "s", "h"],
-        ["f", "p"],
-        ["f"],
-    ]
-
-    # Filter: keep combos not in the exclusion list
-    # Use sorted() so order doesn't matter during comparison
-    losses_strs = [c for c in losses_strs if sorted(c) not in [sorted(x) for x in to_remove]]
+    addtional_name = ""
 
 
-    for hidden_dim, feat, inject_feature_dim, losses_str in zip(hidden_dims, feats, inject_feature_dims, losses_strs):
-
-        l = "".join(losses_str)
-        model_name = "_".join(
-            ['Audio2Tab', "H", str(hidden_dim), "I", str(inject_feature_dim), "U", str(use_pre),
-             "feat", str(feat), l])
-        model_path = script_dir.parent.parent / "TrainedModels" / (model_name + addtional_name)
-
-        print(f"model_name: {model_name}")
-        print(f"model_path: {model_path}")
+    model_name = "_".join(
+            ['Audio2Tab', "H", str(hidden_dim), "I", str(inject_feature_dim), "U", str(use_pre)])
+    model_path = script_dir.parent.parent / "TrainedModels" / (model_name + addtional_name)
+    losses_str = [""]
+    print(f"model_name: {model_name}")
+    print(f"model_path: {model_path}")
 
 
-        train_diffusion_model(data_dir=ROOT_DIR,
+    train_diffusion_model(data_dir=ROOT_DIR,
                               model_path=model_path,
                               noise_steps=noise_steps,
                               base_channels=hidden_dim,
                               inject_feature_dim=inject_feature_dim,
                               embed_dim=embed_dim,
-                              feat=feat,
                               batch_size=n_batches,
                               use_pre=use_pre,
                               epochs=epochs,
