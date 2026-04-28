@@ -18,8 +18,6 @@ N_STRINGS   = 6
 
 class GOATFrameDataset(Dataset):
     """
-    Dataset returning TabCNN-style tablature targets.
-
     target / prev_target shape: (6, 21)
         - axis 0: string index (s1..s6)
         - axis 1: fret class   (0=muted, 1=open/fret0, 2=fret1, ..., 20=fret19)
