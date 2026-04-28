@@ -26,7 +26,7 @@ This repository contains all the necessary utilities to use our architecture. Fi
 ```
 ./
 ├── src
-├── datapreprocess
+├── data_preprocess
 └── weights
 ```
 
