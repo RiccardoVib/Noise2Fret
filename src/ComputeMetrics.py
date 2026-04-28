@@ -1,78 +1,23 @@
-"""
-ComputeMetrics.py – load cached .npz predictions and compute metrics.
-No model / dataset / GPU required.
-Just edit the CONFIG block and run.
-"""
-
 from pathlib import Path
 import numpy as np
 import torch
 
 from tab_metrics import tab_metrics, print_tab_metrics
-from diffusion_trainingEMB import vectors_to_text_token, print_results
+from diffusion_training import vectors_to_text_token, print_results
+
 # ══════════════════════════════════════════════════════════════════════════════
 # CONFIG ← edit this block only
 # ══════════════════════════════════════════════════════════════════════════════
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-SPLITS = ["test", "Validation"]
 
-_MODELS_ROOT = _SCRIPT_DIR.parent.parent.parent / "TrainedModels" / "ToConsider"
+_MODELS_ROOT = _SCRIPT_DIR.parent.parent.parent / "TrainedModels" / ""
 MODEL_NAMEs = [
-    "Audio2Tab_Unet_H_64_E_32_I_515_U_True_feat_alls__TabEmbLoss_01_moredeep_drop01"
+    ""
 ]
 
-#
-# _MODELS_ROOT = _SCRIPT_DIR.parent.parent.parent / "TrainedModels" / "ToConsider" / "Ablations"
-# MODEL_NAMEs = [
-#     "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_TabEmb01",
-#     "Audio2Tab_Unet_H_64_I_513_U_True_feat_stft_TabEmb01",
-#     "Audio2Tab_Unet_H_64_I_514_U_True_feat_stft+sf_TabEmb01",
-#     "Audio2Tab_Unet_H_64_I_514_U_True_feat_stft+b_TabEmb01",
-#     "Audio2Tab_Unet_H_64_I_1_U_True_feat_sf_TabEmb01",
-#     "Audio2Tab_Unet_H_64_I_1_U_True_feat_b_TabEmb01",
-#     "Audio2Tab_Unet_H_64_I_2_U_True_feat_sf+b_TabEmb01",
-# ]
 SPLITS = ["test"]
 
-# _MODELS_ROOT = _SCRIPT_DIR.parent.parent.parent / "TrainedModels" / "ToConsider" / "Loss"
-# MODEL_NAMEs = [
-    #"Audio2Tab_Unet_H_64_I_515_U_True_feat_all_c_TabEmbLoss_01",
-    #           "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_f_TabEmbLoss_01",
-    #           "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_p_TabEmbLoss_01",
-    #           "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_h_TabEmbLoss_01",
-    #           "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_s_TabEmbLoss_01",
-    #             "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_fc_TabEmbLoss_01",
-    #             "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_fh_TabEmbLoss_01",
-    #             "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_fp_TabEmbLoss_01",
-    #             "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_fpc_TabEmbLoss_01",
-    #            "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_fpcs_TabEmbLoss_01",
-    #             "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_fs_TabEmbLoss_01",
-    #             "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_pc_TabEmbLoss_01",
-    #             "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_ps_TabEmbLoss_01",
-    #             "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_s_TabEmbLoss_01",
-    #             "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_sh_TabEmbLoss_01",
-    #             "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_ch_TabEmbLoss_01",
-    #             "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_ph_TabEmbLoss_01",
-    #             "Audio2Tab_Unet_H_64_I_515_U_True_feat_all_cs_TabEmbLoss_01",
-    #            ]
-
-# SPLITS = ["test"]
-
-# # Root folder where model checkpoints live
-# _MODELS_ROOT = _SCRIPT_DIR.parent.parent.parent / "TrainedModels" / "ToConsider" / "HiddenDims"
-#
-# MODEL_NAMEs = [
-#     "Audio2Tab_Unet_H_16_I_515_U_True_feat_all_TabEmb01",
-#     "Audio2Tab_Unet_H_32_I_515_U_True_feat_all_TabEmb01",
-#     "Audio2Tab_Unet_H_64_I_515_U_True_TabEmb01",
-#     "Audio2Tab_Unet_H_128_I_515_U_True_TabEmb01",
-# ]
-# SPLITS = ["test"]
-
-# MODEL_NAMEs = ["Audio2Tab_B_128TabCNN_GOAT"]
-# _MODELS_ROOT = _SCRIPT_DIR.parent.parent.parent / "TrainedModels" / "ToConsider" / "ComparisonsGOAT"
-# SPLITS = ["test"]
 
 # ══════════════════════════════════════════════════════════════════════════════
 
