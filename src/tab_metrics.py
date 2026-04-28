@@ -10,16 +10,6 @@ Encoding convention (mirrors GOATFrameDataset):
 
 Metrics
 ───────
-note_acc      Fraction of string-slots where GT and pred agree on
-              whether the string is active (played vs muted),
-              ignoring which fret.
-
-fret_acc      Fraction of string-slots where the class ID is exactly
-              equal. Stricter than note_acc – correct fret required.
-
-chord_acc     Fraction of time-slots where ALL 6 strings are predicted
-              exactly right simultaneously.
-
 false_neg_rate  Of GT-active string-slots, fraction predicted as muted.
 false_pos_rate  Of GT-muted string-slots, fraction predicted as active.
 
@@ -156,23 +146,6 @@ def tab_metrics(gt: torch.Tensor, pred: torch.Tensor) -> dict:
 
     assert gt_ids.shape[-1] == 6
 
-    # ── chord precision / recall / F ──────────────────────────────────────────
-    gt_flat = gt_ids.reshape(-1, 6)
-    pred_flat = pred_ids.reshape(-1, 6)
-
-    exact_match = (gt_flat == pred_flat).all(dim=-1)  # (N,)
-    gt_any_active = (gt_flat != MUTED_CLASS).any(dim=-1)  # GT has ≥1 note
-    pred_any_active = (pred_flat != MUTED_CLASS).any(dim=-1)  # pred has ≥1 note
-
-    tp_chord = (exact_match & pred_any_active).float().sum()
-    fp_chord = (~exact_match & pred_any_active).float().sum()
-    fn_chord = (~exact_match & gt_any_active).float().sum()
-
-    chord_prec = (tp_chord / (tp_chord + fp_chord).clamp(min=1e-12)).item()
-    chord_rec = (tp_chord / (tp_chord + fn_chord).clamp(min=1e-12)).item()
-    denom_cf = chord_prec + chord_rec
-    chord_f = (2 * chord_prec * chord_rec / denom_cf) if denom_cf > 0 else 0.0
-
     # ── false negatives ───────────────────────────────────────────────────────
     fn_mask          = gt_active & ~pred_active
     false_neg_rate   = (fn_mask.float().sum() /
@@ -228,9 +201,6 @@ def tab_metrics(gt: torch.Tensor, pred: torch.Tensor) -> dict:
         "tab_recall":            tab_rec,
         "tab_f_measure":         tab_f,
         "tab_disamb":            tab_disamb,
-        "chord_prec": chord_prec,
-        "chord_rec": chord_rec,
-        "chord_f": chord_f,
         "false_neg_rate": false_neg_rate,
         "false_pos_rate": false_pos_rate,
         "false_neg_per_string": false_neg_per_string,
@@ -254,9 +224,6 @@ def print_tab_metrics(metrics: dict, save_path: str = None, prefix: str = "") ->
         f"{p}  Tab F-measure                      : {metrics['tab_f_measure']:.4f}",
         f"{p}  Tab disambiguation                 : {metrics['tab_disamb']:.4f}",
         f"{p}{'─' * 62}",
-        f"{p}  Chord precision     : {metrics['chord_prec']:.4f}",
-        f"{p}  Chord recall        : {metrics['chord_rec']:.4f}",
-        f"{p}  Chord F-measure      : {metrics['chord_f']:.4f}",
         f"{p}  False-negative  (miss rate)         : {metrics['false_neg_rate']:.4f}",
         f"{p}  False-positive  (ghost-note rate)   : {metrics['false_pos_rate']:.4f}",
         f"{p}{'─' * 62}",
