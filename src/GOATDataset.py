@@ -88,7 +88,6 @@ class GOATFrameDataset(Dataset):
         all_rows  = self._load_metadata(data_dir)
         self.meta = pd.concat(all_rows, ignore_index=True)
 
-    # ── All existing helpers ────────────────────────────────────────
     def _load_metadata(self, root_dir):
         item_dirs = sorted(
             glob.glob(os.path.join(root_dir, "item_*")),
