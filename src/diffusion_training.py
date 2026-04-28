@@ -28,12 +28,6 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
         max_events=dataset.max_events,
     )
 
-    dataset_val = GOATFrameDataset(
-        root_dir=data_dir / "GOAT",
-        data_dir=data_dir / "Validation",
-        max_events=dataset.max_events,
-    )
-
     train_dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4,
                                                    pin_memory=True)
     test_dataloader = torch.utils.data.DataLoader(dataset_test, batch_size=4, shuffle=False, drop_last=True,
