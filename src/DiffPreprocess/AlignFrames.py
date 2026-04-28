@@ -289,24 +289,3 @@ def debug_alignment(audio, sr, meta_rows, notes, item, n_examples=5):
     plt.tight_layout()
     plt.savefig(os.path.join(debug_dir, "alignment_overview.png"), dpi=120)
     plt.close()
-
-
-# ─── CLI ───────────────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    from pathlib import Path
-    from Code.Utils.utils import find_folder_upward
-
-    current_dir = Path(os.getcwd())
-    files_dir = find_folder_upward(folder_name="Files", start_path=current_dir)
-
-    ROOT_DIR = files_dir / "GOAT_orig/GOAT"
-    process_dataset_align(ROOT_DIR, frame_duration=FRAME_DURATION, debug=False)
-
-    ROOT_DIR = files_dir / "GOAT_orig/train"
-    process_dataset_align(ROOT_DIR, frame_duration=FRAME_DURATION)
-
-    ROOT_DIR = files_dir / "GOAT_orig/test"
-    process_dataset_align(ROOT_DIR, frame_duration=FRAME_DURATION, debug=False)
-    ROOT_DIR = files_dir / "GOAT_orig/Validation/"
-    process_dataset_align(ROOT_DIR, frame_duration=FRAME_DURATION, debug=True)
