@@ -19,6 +19,7 @@ This repository contains all the necessary utilities to use our architecture. Fi
 **Table:** Computational complexity of the models considered in this study, reported as number of trainable parameters and floating-point operations per second (FLOPs).
 
 [1] Wiggins and Y. E. Kim, “Guitar tablature estimation with a convolutional neural network.” in ISMIR, 2019, pp. 284–291
+
 [2] F. Cwitkowitz, T. Hirvonen, and A. Klapuri, “Fret-net: Continuous-valued pitch contour streaming for polyphonic guitar tablature transcription,” in Proceedings of IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP), 2023.
  
  ### Folder Structure
