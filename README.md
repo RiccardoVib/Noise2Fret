@@ -102,7 +102,7 @@ Example training case:
 cd ./src
 python starter.py \
   --data_dir ./data \
-  --model_path ./models/my_model.pt \
+  --model_path ./models/my_model \
   --noise_steps 1000 \
   --base_channels 64 \
   --embed_dim 32 \
@@ -122,7 +122,7 @@ Example inference case:
 cd ./
 python starter.py \
   --data_dir ./data \
-  --model_path ./models/my_model.pt \
+  --model_path ./models/my_model \
   --noise_steps 1000 \
   --base_channels 64 \
   --embed_dim 32 \
