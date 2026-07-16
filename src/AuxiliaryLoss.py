@@ -37,40 +37,6 @@ def jaccard_tonal_distance(pc_a, pc_b):
     union = ((pc_a + pc_b).clamp(0, 1)).sum(-1)
     return 1.0 - intersection / (union + 1e-8)
 
-def tonal_loss(encoded_flat, pc_tokens):
-    """
-    encoded_flat: (B, D)
-    pc_tokens: (B, nseq, 6)  values 0–11 or -1 for rests/pads
-    """
-    B = encoded_flat.shape[0]
-    if pc_tokens.dim() == 2:
-        pc_tokens = pc_tokens.unsqueeze(1)
-    # Build binary pitch class vectors (B, 12)
-    mask = (pc_tokens >= 0)                          # (B, nseq, 6)
-    pc_vec = torch.zeros(B, 12, device=encoded_flat.device)
-    for b in range(B):
-        valid_pcs = pc_tokens[b][mask[b]]            # flat list of valid pitch classes
-        if valid_pcs.numel() > 0:
-            pc_vec[b].scatter_(0, valid_pcs % 12, 1.0)  # binary: 1 if pc present
-
-    # Pairwise Jaccard distance matrix (B, B)
-    pc_a = pc_vec.unsqueeze(1).expand(B, B, 12)     # (B, B, 12)
-    pc_b = pc_vec.unsqueeze(0).expand(B, B, 12)     # (B, B, 12)
-    tonal_dist = jaccard_tonal_distance(
-        pc_a.reshape(B * B, 12),
-        pc_b.reshape(B * B, 12)
-    ).reshape(B, B)                                  # (B, B)
-
-    # Pairwise embedding distance matrix (B, B)
-    emb_dist = torch.cdist(encoded_flat.unsqueeze(0),
-                           encoded_flat.unsqueeze(0)).squeeze(0)
-
-    # Normalize both to [0, 1] and align
-    tonal_dist_norm = tonal_dist / (tonal_dist.max() + 1e-8)
-    emb_dist_norm   = emb_dist   / (emb_dist.max()   + 1e-8)
-
-    return F.mse_loss(emb_dist_norm, tonal_dist_norm)
-
 
 def fret_distance(fret_a, fret_b):
     """
@@ -80,35 +46,6 @@ def fret_distance(fret_a, fret_b):
     dist = (fret_a.float() - fret_b.float()).abs()
     valid = ((fret_a != 0) & (fret_b != 0)).float()
     return dist.sum(-1) / (valid.sum(-1) + 1e-8) # (B,)
-
-def positional_loss(encoded, fret_tokens, pad_fret=-1):
-    """
-    encoded: (B, D)
-    fret_tokens: (B, nseq, 6)
-    """
-    B = encoded.shape[0]
-    # fret_tokens is (B, 6) — no nseq dim, handle directly
-    if fret_tokens.dim() == 2:
-        fret_tokens = fret_tokens.unsqueeze(1)
-
-    # Use mean fret position across sequence
-    mask = ((fret_tokens != pad_fret) & (fret_tokens != 0)).float()  # exclude pads AND open strings
-    fret_mean = (fret_tokens.float()*mask).mean(dim=1)  # (B, 6)
-
-    # Pairwise fret distance (B, B) using fret_distance
-    fret_a = fret_mean.unsqueeze(1).expand(B, B, 6).reshape(B * B, 6)
-    fret_b = fret_mean.unsqueeze(0).expand(B, B, 6).reshape(B * B, 6)
-
-    pos_dist = fret_distance(fret_a, fret_b).reshape(B, B)  # (B, B)
-
-    # Pairwise embedding distance
-    emb_dist = torch.cdist(encoded.unsqueeze(0),
-                           encoded.unsqueeze(0)).squeeze(0)
-
-    pos_dist_norm = pos_dist / (pos_dist.max() + 1e-8)
-    emb_dist_norm = emb_dist / (emb_dist.max() + 1e-8)
-
-    return F.mse_loss(emb_dist_norm, pos_dist_norm)
 
 
 # Circle of fifths positions for pitch classes 0–11 (C, C#, D, ... B)
@@ -238,6 +175,35 @@ def hand_span_penalty(fret_pred, pad_fret=-1, max_span=6):
     excess = (span - max_span).clamp(min=0)  # 0 if within limit, positive if over
     return excess / max_span  # normalize: max excess = ~24/5
 
+def hand_span_penalty_soft(fret_probs, pad_fret=-1, max_span=6):
+    """
+    Differentiable hand-span penalty.
+
+    fret_probs: (B, 6, 21) logits or probabilities over classes
+               class 0 = muted, classes 1..20 = frets 0..19
+    Returns: (B,) penalty in [0, ~1]
+    """
+    if fret_probs.dim() != 3:
+        raise ValueError("fret_probs must have shape (B, 6, 21)")
+
+    if fret_probs.dtype.is_floating_point and fret_probs.min().item() < 0:
+        probs = torch.softmax(fret_probs, dim=-1)
+    else:
+        s = fret_probs.sum(dim=-1, keepdim=True).clamp_min(1e-8)
+        probs = fret_probs / s
+
+    fret_vals = torch.arange(21, device=probs.device, dtype=probs.dtype) - 1
+    exp_frets = (probs * fret_vals.view(1, 1, -1)).sum(dim=-1)
+
+    played = 1.0 - probs[..., 0]
+    weight = played.sum(dim=-1).clamp_min(1e-8)
+    span_center = (exp_frets * played).sum(dim=-1) / weight
+    centered = (exp_frets - span_center.unsqueeze(-1)).abs() * played
+    soft_span = centered.sum(dim=-1) / weight
+
+    excess = (soft_span - max_span).clamp_min(0.0)
+    return excess / max_span
+    
 def string_activity_jaccard_loss(fret_pred, fret_target, pad_fret=-1):
     """
     Returns scalar Jaccard distance on string activity vectors.
