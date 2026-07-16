@@ -176,7 +176,37 @@ class DiffusionModel(nn.Module):
         tab_logits = self.decode(x0_pred)
         soft_frets = soft_fret_expectation(tab_logits)
         soft_pc = pc_probs_to_soft_binary(tab_logits)
+
+        with torch.no_grad():
+            target_pc_tokens = torch.full_like(target_ids, -1)
+            target_frets = torch.full_like(target_ids, -1)
+            classes = target_ids
+            for b in range(classes.size(0)):
+                for t in range(classes.size(1)):
+                    for s in range(classes.size(2)):
+                        cls = int(classes[b, t, s].item())
+                        if cls == 0:
+                            continue
+                        fret = cls - 1
+                        target_frets[b, t, s] = fret
+                        target_pc_tokens[b, t, s] = (OPEN_PITCHES[s] + fret) % 12
     
+            if target_pc_tokens.dim() == 3:
+                target_pc_tokens_flat = target_pc_tokens.reshape(-1, target_pc_tokens.shape[-1])
+                target_frets_flat = target_frets.reshape(-1, target_frets.shape[-1])
+            else:
+                target_pc_tokens_flat = target_pc_tokens
+                target_frets_flat = target_frets
+    
+            pc_gt_bin = pc_tokens_to_binary(target_pc_tokens_flat)
+
+        played_soft = 1.0 - torch.softmax(tab_logits, dim=-1)[..., 0]
+        string_loss = F.binary_cross_entropy(played_soft, (target_ids != 0).float())
+        fret_loss = F.l1_loss(soft_frets, target_frets.float())
+        pc_loss = F.mse_loss(soft_pc, pc_gt_bin)
+        cof_loss = cof_chord_distance(soft_pc, pc_gt_bin).mean()
+        hs_loss = hand_span_penalty(soft_frets).mean()
+        """
         pc_preds, frets_preds, frets, pcs = [], [], [], []
         for b in range(x0_pred.size(0)):
             frets_pred, pc_pred = self._build_pc_frets(x0[b])
@@ -190,7 +220,7 @@ class DiffusionModel(nn.Module):
         pc_preds = torch.stack(pc_preds, dim=0).to(self.device)
         frets = torch.stack(frets, dim=0).to(self.device)
         pcs = torch.stack(pcs, dim=0).to(self.device)
-
+        
         # (B, 6) raw pc indices → (B, 12) binary chord vectors
         pc_gt_bin = pc_tokens_to_binary(pcs.to(self.device))  # ground truth
         pc_pred_bin = pc_tokens_to_binary(pc_preds.to(self.device))  # from argmax prediction
@@ -200,7 +230,8 @@ class DiffusionModel(nn.Module):
         pc_loss = jaccard_tonal_distance(pc_pred_bin, pc_gt_bin).mean()
         cof_loss = cof_chord_distance(pc_pred_bin, pc_gt_bin).mean()
         #cof_loss = cof_chord_distance(pc_vec_a=pc_pred_bin, pc_vec_b=pc_gt_bin, fret_a=frets_preds, fret_b=frets).mean()
-
+        """
+        
         if "f" in losses_str:
             loss = loss + 0.1 * fret_loss
         if "p" in losses_str:
