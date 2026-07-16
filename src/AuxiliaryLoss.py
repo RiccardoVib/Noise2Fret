@@ -167,29 +167,6 @@ def cof_chord_distance(pc_vec_a, pc_vec_b,
     dist = torch.min(diff, 12.0 - diff)   # circular distance in [0, 6]
     return dist / 6.0                      # normalize to [0, 1]
 
-def _cof_chord_distance(pc_vec_a, pc_vec_b):
-    """
-    Computes mean pairwise circle-of-fifths distance between two chord
-    pitch class sets.
-    pc_vec_a, pc_vec_b: (N, 12) binary pitch class vectors
-    Returns: (N,) scalar distance per pair, in [0, 6]
-    """
-    device = pc_vec_a.device
-    cof = COF_POSITIONS.to(device)  # (12,)
-
-    # Weighted mean CoF position per chord (ignoring absent pitch classes)
-    sum_a = pc_vec_a.sum(-1, keepdim=True) + 1e-8   # (N, 1)
-    sum_b = pc_vec_b.sum(-1, keepdim=True) + 1e-8
-    mean_pos_a = (pc_vec_a * cof) / sum_a            # (N, 12) → weighted mean
-    mean_pos_b = (pc_vec_b * cof) / sum_b
-
-    pos_a = mean_pos_a.sum(-1)  # (N,) scalar CoF position per chord
-    pos_b = mean_pos_b.sum(-1)
-
-    # Circular distance on the 12-step circle
-    diff = (pos_a - pos_b).abs()
-    dist = torch.min(diff, 12.0 - diff)             # (N,) in [0, 6]
-    return dist / 6.0                                # normalize to [0, 1]
 
 def soft_fret_expectation(tab_logits: torch.Tensor) -> torch.Tensor:
     """(B, 6, 21) → (B, 6) expected fret value per string, differentiable."""
@@ -239,33 +216,6 @@ def pc_tokens_to_binary(pc_tokens: torch.Tensor, n_classes: int = 12) -> torch.T
         if valid_pcs.numel() > 0:
             pc_vec[b].scatter_(0, valid_pcs.long() % 12, 1.0)
     return pc_vec                                    # (B, 12)
-
-def cof_loss(encoded_flat, pc_tokens):
-    """
-    encoded_flat: (B, D)
-    pc_tokens: (B, nseq, 6)  values 0–11 or -1 for rests/pads
-    """
-    B = encoded_flat.shape[0]
-
-    # Build binary pitch class vectors (B, 12) — same as tonal_loss
-    mask = (pc_tokens >= 0)
-    pc_vec = torch.zeros(B, 12, device=encoded_flat.device)
-    for b in range(B):
-        valid_pcs = pc_tokens[b][mask[b]]
-        if valid_pcs.numel() > 0:
-            pc_vec[b].scatter_(0, valid_pcs % 12, 1.0)
-
-    # Pairwise CoF distance (B, B)
-    pc_a = pc_vec.unsqueeze(1).expand(B, B, 12).reshape(B * B, 12)
-    pc_b = pc_vec.unsqueeze(0).expand(B, B, 12).reshape(B * B, 12)
-    cof_dist = cof_chord_distance(pc_a, pc_b).reshape(B, B)   # (B, B) in [0,1]
-
-    # Pairwise embedding distance (B, B)
-    emb_dist = torch.cdist(encoded_flat.unsqueeze(0),
-                           encoded_flat.unsqueeze(0)).squeeze(0)
-    emb_dist_norm = emb_dist / (emb_dist.max() + 1e-8)
-
-    return F.mse_loss(emb_dist_norm, cof_dist)
 
 
 def hand_span_penalty(fret_pred, pad_fret=-1, max_span=6):
