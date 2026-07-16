@@ -126,13 +126,13 @@ def build_note_centric_frames(
 
         # ── Active notes in [f_on, f_off) ───────────────────────────
         TAIL_MARGIN = 0.01  # 1 ms
+        TAIL_MARGIN = 0.01  # 0.1 ms
 
         active_notes = [
             note for note in notes
-            if note["onset_s"] <= f_off - TAIL_MARGIN
-               and note["onset_s"] + max(note["duration_s"], min_note_duration) > f_on + TAIL_MARGIN
+            if note["onset_s"] < f_off
+               and note["onset_s"] > f_on - TAIL_MARGIN
         ]
-
         active_notes.sort(key=lambda n: (n["onset_s"], n["string"]))
         active_tokens  = [n["token"]      for n in active_notes]
         active_pitches = [n["midi_pitch"] for n in active_notes]
