@@ -1,6 +1,6 @@
 # Noise2Fret
 
-This code repository is for the article _Playability-Aware Audio-To-Tablature Transcription Via Diffusion Models_
+This code repository is for the article _Playability-Aware Audio-To-Tablature Guitar Transcription Via Diffusion Models_
 
 This repository contains all the necessary utilities to use our architecture. Find the code located inside the "./src" folder, and the weights of pre-trained models inside the "./weights" folder
 
@@ -87,8 +87,6 @@ Ensure you have loaded the dataset into the chosen datasets folder.
 
 --batch_size - Number of samples per batch [int] (default=128)
 
---use_pre - When True, loads a pre-trained model before training [bool] (default=False)
-
 --epochs - Number of training epochs [int] (default=60)
 
 --lr - Initial learning rate [float] (default=3e-4)
@@ -108,7 +106,6 @@ python starter.py \
   --embed_dim 32 \
   --feat alls \
   --batch_size 128 \
-  --use_pre False \
   --epochs 60 \
   --lr 3e-4 \
   --losses_str [""]
@@ -128,7 +125,6 @@ python starter.py \
   --embed_dim 32 \
   --feat alls \
   --batch_size 128 \
-  --use_pre False \
   --epochs 60 \
   --lr 3e-4 \
   --losses_str [""]
