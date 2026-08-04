@@ -7,7 +7,7 @@ This repository contains all the necessary utilities to use our architecture. Fi
 <p align="center">
 <img src="./architecture.jpg" width="800"/>
  <br/>
-  <em>Figure 1: Overview of the proposed architecture. The tablature tensor (T × S × F) is first projected into a continuous embedding space (T × SE) via a learned embedding table, then corrupted with Gaussian noise according to the diffusion forward process. The resulting noisy representation is processed by a 1D convolutional U-Net comprising three encoder stages at channel widths C₁, 2C₁, and 4C₁, a bottleneck at 8C₁ with self-attention, and a symmetric decoder with skip connections restoring the sequence to its original resolution. Audio, spectral magnitude, spectral flux, and brightness features are injected as conditioning signals at each resolution level. The decoder reconstructs the predicted embedding (T × SE), which is decoded back to per-string class logits (T × S × F).</em>
+  <em>Figure 1: Overview of the proposed Noise2Fret architecture at inference time. Starting from a Gaussian noise tensor in the continuous embedding space (T x SE), the model iteratively denoises the representation through a 1D convolutional U-Net comprising four encoder stages, a self-attention bottleneck, and a symmetric decoder with skip connections. Audio, spectral features, and timestep are injected as conditioning signals at each resolution level. The final denoised embedding is projected back to per-string class logits over F fret states, yielding the predicted tablature tensor (T x S x F).</em>
    </p>
 
 | Model | # Params | FLOPs |
