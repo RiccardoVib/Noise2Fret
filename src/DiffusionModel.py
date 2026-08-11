@@ -143,7 +143,6 @@ class DiffusionModel(nn.Module):
         target_ids = target.argmax(dim=-1)  # (B, T, 6)
 
         target_emb = self.encode(target)  # (B, T, 6*E)
-        prev_emb = self.encode(prev)  # (B, T, 6*E)
 
         sigmas_t, sigmas_batch_t = sigmas_fn(
             target_emb.shape[0], self.device, target_emb.ndim
@@ -152,7 +151,7 @@ class DiffusionModel(nn.Module):
         x_t, _, v_target = self.noise_audios(target_emb, sigmas_batch_t)
 
         sigmas_t_enc = self.encoder.to_embedding(sigmas_t)
-        predicted_v = self.model(x_t, sigmas_t_enc, prev_emb, audio, cond)
+        predicted_v = self.model(x_t, sigmas_t_enc, audio, cond)
 
         alphas_b, betas_b = self.get_alpha_beta(sigmas_batch_t)
         x0_pred = alphas_b * x_t - betas_b * predicted_v  # (B, T, 6*E)
