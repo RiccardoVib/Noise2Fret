@@ -18,7 +18,7 @@ def sinusoidal_encoding(seq_len, d_model):
 
 
 class Modulation(nn.Module):
-    """Simple feature modulation (FiLM)"""
+    """Feature modulation (FiLM)"""
 
     def __init__(self, channels, cond_dim):
         super().__init__()
@@ -32,7 +32,7 @@ class Modulation(nn.Module):
 
 
 class SelfAttention(nn.Module):
-    """Simple self-attention with dropout"""
+    """Self-attention with dropout"""
 
     def __init__(self, channels, dropout=0.1):
         super().__init__()
@@ -62,7 +62,7 @@ class SelfAttention(nn.Module):
 
 
 class FeedForward(nn.Module):
-    """Simple feedforward layer"""
+    """Feedforward layer"""
 
     def __init__(self, channels, dropout=0.1):
         super().__init__()
@@ -79,7 +79,7 @@ class FeedForward(nn.Module):
 
 
 class InjectionBlock(nn.Module):
-    """Simple feature injection"""
+    """Feature injection"""
 
     def __init__(self, channels, inject_channels):
         super().__init__()
@@ -115,7 +115,7 @@ class AudioEncoder(nn.Module):
 
 
 class ResNetBlock(nn.Module):
-    """Simple ResNet block with all components"""
+    """ResNet block with all components"""
 
     def __init__(self, in_ch, out_ch, time_dim, use_attention=False, audio_ch=None, inject_ch=None, dropout=0.1):
         super().__init__()
@@ -179,7 +179,7 @@ class ResNetBlock(nn.Module):
 
 
 class TokenUNet(nn.Module):
-    """U-Net adapted for token-level prediction"""
+    """U-Net"""
 
     def __init__(
             self,
@@ -190,7 +190,6 @@ class TokenUNet(nn.Module):
             inject_feature_dim=1,
             audio_embed_dim=64,
             dropout=0.1,
-            use_pre=False
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -206,7 +205,7 @@ class TokenUNet(nn.Module):
 
         self.input_dropout = nn.Dropout(dropout)
 
-        token_in = in_channels * 2 if use_pre else in_channels
+        token_in = in_channels
 
         # Input
         self.input_conv = nn.Conv1d(token_in, base_channels, 3, padding=1)
@@ -250,7 +249,7 @@ class TokenUNet(nn.Module):
             nn.Conv1d(base_channels, in_channels, kernel_size=3, padding=1)
         )
 
-    def forward(self, noisy_tokens, time, pre_frames, inject_audio=None, inject_features=None):
+    def forward(self, noisy_tokens, time, inject_audio=None, inject_features=None):
         """
         Args:
             noisy_tokens: (B, seq_len, E) - token indices
@@ -271,13 +270,7 @@ class TokenUNet(nn.Module):
         noisy_tokens = noisy_tokens.permute(0, 2, 1) + pos
 
         # Input
-        if self.use_pre:
-            pre_frames = pre_frames.permute(0, 2, 1) + pos
-            x = torch.cat([pre_frames, noisy_tokens], dim=1)
-        else:
-            x = noisy_tokens
-
-        x = self.input_dropout(self.input_conv(x))  #
+        x = self.input_dropout(self.input_conv(noisy_tokens))  #
         # inject_features = F.pad(inject_features, (1, 0))
         freq_features = self.c_conv(inject_features.permute(0, 2, 1))
         audio_feat = self.audio_encoder(inject_audio) if inject_audio is not None else None
