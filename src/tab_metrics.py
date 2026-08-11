@@ -1,5 +1,11 @@
 """
-_tab_metrics.py
+Created on Tue Nov 2 08:14:08 2025
+
+@author: Riccardo Simionato
+
+"""
+
+"""
 ──────────────
 Evaluation metrics for per-string fret prediction (GOATFrameDataset format).
 
