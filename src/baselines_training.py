@@ -10,16 +10,6 @@ from FeaturesExtractor import compute_cqt, compute_hcqt
 from tab_metrics import tab_metrics, print_tab_metrics
 import numpy as np
 from Baselines import FretNet, TabCNN
-from AuxiliaryLoss import (
-    pc_tokens_to_binary,
-    fret_distance,
-    cof_chord_distance,
-    jaccard_tonal_distance,
-    hand_span_penalty,
-    string_activity_jaccard_loss,
-)
-from DiffusionModel import DiffusionModel
-
 
 def train_model(data_dir, model_path, batch_size, baseline, epochs=10, lr=1e-4, train_model=True):
     """Train the model on a dataset."""
@@ -71,7 +61,6 @@ def train_model(data_dir, model_path, batch_size, baseline, epochs=10, lr=1e-4, 
         compute_feat = compute_cqt
     else:
         model = None
-    diffusion = DiffusionModel(model=model)
 
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Number of parameters: {total_params}")
@@ -358,11 +347,10 @@ if __name__ == "__main__":
     print(f"current_dir: {current_dir}")
     files_dir = find_folder_upward(folder_name="Files", start_path=current_dir)
     ROOT_DIR = files_dir / "Clean_GOAT_processed_0.1"
-
     script_path = Path(__file__).resolve()
     script_dir = script_path.parent
     n_batches = 128
-    epochs = 0#1000
+    epochs = 1000
     lr = 3e-4
     baselines = ["TabCNN", "FRET"]
     baseline = baselines[1]
@@ -378,5 +366,6 @@ if __name__ == "__main__":
                 batch_size=n_batches,
                 epochs=epochs,
                 lr=lr,
-                baseline=baseline
+                baseline=baseline,
+                train_model=True
                 )
