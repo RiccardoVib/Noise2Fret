@@ -380,20 +380,6 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
     with open(filename, 'w') as f:
         json.dump(losses_dict, f)
     print(f"Losses saved to {filename}")
-
-    dev_data_list = [datapath for datapath in data_list if not (
-        os.path.split(datapath)[1].startswith(f"0{test_num}_"))]
-    random.shuffle(dev_data_list)
-    valid_data_list = dev_data_list[int(
-            round(len(dev_data_list) * train_ratio)):]
-    valid_dataset = CustomDataset(valid_data_list)
-    val_loader = torch.utils.data.DataLoader(
-        dataset=valid_dataset,
-        batch_size=4,
-        shuffle=False,
-        collate_fn=tab_pad_collate,
-        num_workers=4,
-        pin_memory=False, drop_last=True)
         
     gt_chunks, pred_chunks = [], []
     with torch.no_grad():
@@ -538,26 +524,14 @@ if __name__ == "__main__":
     epochs = 1000
     lr = 3e-4
     inject_feature_dim = 515
-    use_pre = False
-    #losses_str = ["f"]
-    losses_str = ["p", "f"]
-    #losses_str = ["c"]
-    #losses_str = ["s"]
-    #losses_str = ["h"]
-    #losses_str = ["f", "p", "c", "s", "h"]
-    #losses_str = ["f", "p", "s", "h"]
-    #losses_str = [""]
+    losses_str = [""]
     
-    addtional_name = ""
-
-
     model_name = "_".join(
             ['Audio2Tab', "GuitarSet", "H", str(hidden_dim), "I", str(inject_feature_dim), "U", str(use_pre), "_f1_p01_4"])#losses_str[0]])
-    model_path = script_dir.parent.parent / "TrainedModels" / (model_name + addtional_name)
+    model_path = script_dir.parent.parent / "TrainedModels" / (model_name)
 
     print(f"model_name: {model_name}")
     print(f"model_path: {model_path}")
-
 
     train_diffusion_model(data_dir=files_dir,
                               model_path=model_path,
@@ -570,4 +544,5 @@ if __name__ == "__main__":
                               epochs=epochs,
                               lr=lr,
                               losses_str=losses_str,
+                              train_model=True
                               )
