@@ -68,37 +68,10 @@ def cof_chord_distance(pc_vec_a, pc_vec_b,
     device = pc_vec_a.device
     cof = COF_POSITIONS.to(device)  # (12,)
 
-    if fret_a is not None and fret_b is not None:
-        open_t = torch.tensor(OPEN_PITCHES, device=device, dtype=torch.float)  # (6,)
-
-        def bass_cof(frets):
-            # frets: (N, T, 6)
-            N, T, _ = frets.shape
-
-            abs_pitch = open_t + frets.float()  # (N, T, 6)
-            abs_pitch = abs_pitch.masked_fill(frets < 0, 999.0)  # mute → sentinel
-            bass_idx = abs_pitch.argmin(dim=-1)  # (N, T) — lowest string per timestep
-
-            # Build matching index tensors for all three dims
-            n_idx = torch.arange(N, device=device).unsqueeze(1).expand(N, T)  # (N, T)
-            t_idx = torch.arange(T, device=device).unsqueeze(0).expand(N, T)  # (N, T)
-
-            bass_fret = frets[n_idx, t_idx, bass_idx]  # (N, T)
-            bass_open = open_t[bass_idx]  # (N, T)
-            bass_pc = ((bass_open + bass_fret.float()) % 12).long()  # (N, T)
-
-            # Aggregate CoF position over the time axis → scalar per sample
-            return cof[bass_pc].float().mean(dim=1)  # (N,)
-
-        pos_a = bass_cof(fret_a)
-        pos_b = bass_cof(fret_b)
-
-    else:
-        # fallback: weighted-mean CoF (original behaviour)
-        sum_a = pc_vec_a.sum(-1, keepdim=True) + 1e-8
-        sum_b = pc_vec_b.sum(-1, keepdim=True) + 1e-8
-        pos_a = (pc_vec_a * cof).sum(-1) / sum_a.squeeze(-1)
-        pos_b = (pc_vec_b * cof).sum(-1) / sum_b.squeeze(-1)
+    sum_a = pc_vec_a.sum(-1, keepdim=True) + 1e-8
+    sum_b = pc_vec_b.sum(-1, keepdim=True) + 1e-8
+    pos_a = (pc_vec_a * cof).sum(-1) / sum_a.squeeze(-1)
+    pos_b = (pc_vec_b * cof).sum(-1) / sum_b.squeeze(-1)
 
     diff = (pos_a - pos_b).abs()
     dist = torch.min(diff, 12.0 - diff)   # circular distance in [0, 6]
@@ -179,20 +152,13 @@ def hand_span_penalty_soft(fret_probs, pad_fret=-1, max_span=6):
     """
     Differentiable hand-span penalty.
 
-    fret_probs: (B, 6, 21) logits or probabilities over classes
-               class 0 = muted, classes 1..20 = frets 0..19
+    tab_logits: (B, T, 6, F) logits
+               class 0 = muted, classes 1..F-1 = frets 0..19
     Returns: (B,) penalty in [0, ~1]
     """
-    if fret_probs.dim() != 3:
-        raise ValueError("fret_probs must have shape (B, 6, 21)")
 
-    if fret_probs.dtype.is_floating_point and fret_probs.min().item() < 0:
-        probs = torch.softmax(fret_probs, dim=-1)
-    else:
-        s = fret_probs.sum(dim=-1, keepdim=True).clamp_min(1e-8)
-        probs = fret_probs / s
-
-    fret_vals = torch.arange(21, device=probs.device, dtype=probs.dtype) - 1
+    probs = torch.softmax(tab_logits, dim=-1)
+    fret_vals = torch.arange(tab_logits.shape[-1], device=probs.device, dtype=probs.dtype) - 1
     exp_frets = (probs * fret_vals.view(1, 1, -1)).sum(dim=-1)
 
     played = 1.0 - probs[..., 0]
@@ -217,3 +183,20 @@ def string_activity_jaccard_loss(fret_pred, fret_target, pad_fret=-1):
 
     jaccard = intersection / (union + 1e-8)             # (B,) similarity
     return (1.0 - jaccard).mean()
+    
+def string_activity_jaccard_loss_soft(tab_logits, target_frets, pad_fret=-1):
+    """
+    Differentiable string_activity_jaccard_loss.
+
+    tab_logits: (B, T, 6, F) logits
+               class 0 = muted, classes 1..F-1 = frets 0..19
+    Returns: (B,) [0, ~1]
+    """
+    probs = torch.softmax(tab_logits, dim=-1)
+    played_pred = 1.0 - probs[..., 0]                 # (B, T, 6) soft "is played"
+    played_target = (target_frets != pad_fret).float()  # target is fine to be hard
+
+    intersection = (played_pred * played_target).sum(-1)
+    union = (played_pred + played_target - played_pred * played_target).sum(-1)
+    return (1.0 - intersection / (union + 1e-8)).mean()
+
