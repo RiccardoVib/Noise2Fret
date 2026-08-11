@@ -68,7 +68,7 @@ cd ./
 pip install -r requirements.txt
 ```
 
-To train models, use the ```starter.py``` script or via SSH with ```run.sh```.
+To train models, use the ```training.py``` script or via SSH with ```run.sh```.
 Ensure you have loaded the dataset into the chosen datasets folder.
 
 ### Available Options
@@ -83,8 +83,6 @@ Ensure you have loaded the dataset into the chosen datasets folder.
 
 --embed_dim - Embedding dimension size [int] (default=32)
 
---feat - Feature type to use for conditioning [str] (default="all")
-
 --batch_size - Number of samples per batch [int] (default=128)
 
 --epochs - Number of training epochs [int] (default=60)
@@ -93,18 +91,17 @@ Ensure you have loaded the dataset into the chosen datasets folder.
 
 --losses_str - Comma-separated list of loss functions to use [lst[str]] (default=[""])
  
--- train_model - When True, train the model before test [bool] (default=False)
+--train_model - When True, train the model before test [bool] (default=False)
 
 Example training case: 
 ```
 cd ./src
-python starter.py \
+python training.py \
   --data_dir ./data \
   --model_path ./models/my_model \
   --noise_steps 1000 \
   --base_channels 64 \
   --embed_dim 32 \
-  --feat alls \
   --batch_size 128 \
   --epochs 60 \
   --lr 3e-4 \
@@ -117,13 +114,12 @@ To only run inference on an existing pre-trained model, set the "train_model" fl
 Example inference case:
 ```
 cd ./
-python starter.py \
+python training.py \
   --data_dir ./data \
   --model_path ./models/my_model \
   --noise_steps 1000 \
   --base_channels 64 \
   --embed_dim 32 \
-  --feat alls \
   --batch_size 128 \
   --epochs 60 \
   --lr 3e-4 \
@@ -131,7 +127,43 @@ python starter.py \
   --train_model False
 ```
 
+### Training on Guitarset 
 
+To train models on Guitarset, use the ```training_guitarSet.py``` script 
+
+```
+cd ./src
+python training_guitarSet.py \
+  --data_dir ./data \
+  --model_path ./models/my_model \
+  --noise_steps 1000 \
+  --base_channels 64 \
+  --embed_dim 32 \
+  --batch_size 128 \
+  --epochs 60 \
+  --lr 3e-4 \
+  --losses_str [""]
+  --train_model True
+```
+
+### Baseline Options
+
+To train baseline models on GOAT, use the ```baselines_training.py``` script and choose between "TabCNN" and "FRET" as the baseline argument.
+
+```
+cd ./src
+python baselines_training.py \
+  --data_dir ./data \
+  --model_path ./models/my_model \
+  --batch_size 128 \
+  --epochs 60 \
+  --lr 3e-4 \
+  --baseline="TabCNN" \
+  --train_model True
+```
+
+
+           
 # Bibtex
 
 If you use the code included in this repository or any part of it, please acknowledge its authors by adding a reference to these publications:
