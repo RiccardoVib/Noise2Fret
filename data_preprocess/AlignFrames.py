@@ -125,8 +125,7 @@ def build_note_centric_frames(
         frame_list.append(chunk)
 
         # ── Active notes in [f_on, f_off) ───────────────────────────
-        TAIL_MARGIN = 0.01  # 1 ms
-        TAIL_MARGIN = 0.01  # 0.1 ms
+        TAIL_MARGIN = 0.01  # 10 ms
 
         active_notes = [
             note for note in notes
