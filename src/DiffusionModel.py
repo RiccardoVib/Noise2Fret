@@ -1,3 +1,9 @@
+"""
+Created on Tue Nov 2 08:14:08 2025
+
+@author: Riccardo Simionato
+
+"""
 from math import pi
 from torch import Tensor
 import torch.nn as nn
