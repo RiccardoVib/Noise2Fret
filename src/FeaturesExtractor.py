@@ -1,7 +1,6 @@
 import librosa
 import numpy as np
 import torch
-
 import torch.nn.functional as F
 from einops import rearrange
 
@@ -21,29 +20,6 @@ def compute_audio_features(audio: torch.Tensor, sr: int = 16000,
                       window=window, return_complex=True)  # (B, F, T)
     mag = stft.abs()  # (B, F, T)
 
-    # ── CQT ──────────────────────────────────────────────────────────
-
-    fmin = librosa.note_to_hz('E2')
-    audio_float = x.cpu().numpy()
-    audio_padded = np.pad(audio_float, ((0, 0), (0, 2496)), mode='reflect')  # (128, 2048)
-
-    cqt = torch.tensor(
-            librosa.cqt(
-                audio_padded,
-                sr=16000,
-                hop_length=hop_length,
-                fmin=fmin,
-                n_bins=96,
-                bins_per_octave=24,
-                pad_mode='reflect',  # default is 'constant' (zero-pad)
-                filter_scale=0.5
-            )
-        )
-
-    cqt_mag = cqt.abs().permute(0, 2, 1).to(audio.device)  # (n_frames, n_bins)
-
-    n_frames = len(cqt_mag)
-
     # --- Spectral Flux: L1 difference between consecutive frames ---
     flux = torch.diff(mag, dim=-1)           # (B, F, T-1)
     flux = flux.clamp(min=0).sum(dim=1)      # half-wave rectify + sum over freqs -> (B, T-1)
@@ -61,7 +37,6 @@ def compute_audio_features(audio: torch.Tensor, sr: int = 16000,
     mag = rearrange(mag, 'b f t -> b t f')
 
     return {
-        "cqt_mag": cqt_mag[:, :7],          # (B, T, F)
         "stft_mag": mag,          # (B, T, F)
         "spectral_flux": flux.unsqueeze(-1),   # (B, T)
         "brightness": brightness.unsqueeze(-1),     # (B, T)
