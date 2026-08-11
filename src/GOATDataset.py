@@ -1,3 +1,9 @@
+"""
+Created on Tue Nov 2 08:14:08 2025
+
+@author: Riccardo Simionato
+
+"""
 import os
 import glob
 import numpy as np
