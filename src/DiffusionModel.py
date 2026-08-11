@@ -2,24 +2,24 @@ from math import pi
 from torch import Tensor
 import torch.nn as nn
 from typing import Tuple
-from Embeddigns import NumberEmbedder
+from Embeddings import NumberEmbedder
 from DiffusionUtils import UniformDistribution, extend_dim, LinearSchedule
 import torch
 from tqdm import tqdm
 from einops import repeat
 import torch.nn.functional as F
-from AuxiliaryLoss import pc_tokens_to_binary, fret_distance, cof_chord_distance, jaccard_tonal_distance, hand_span_penalty, string_activity_jaccard_loss
-
+from AuxiliaryLoss import (pc_tokens_to_binary, fret_distance, cof_chord_distance,
+                           jaccard_tonal_distance, string_activity_jaccard_loss_soft,
+                           hand_span_penalty_soft, soft_fret_expectation, pc_probs_to_soft_binary)
 N_STRINGS  = 6
-N_CLASSES  = 24   # 0=muted, 1=open, 2..20=fret1..19
 PAD_FRET = -1
 PAD_PC = -1
 OPEN_PITCHES = [40, 45, 50, 55, 59, 64]
 
 class DiffusionModel(nn.Module):
-    """Simple diffusion model implementation."""
+    """Diffusion model implementation."""
 
-    def __init__(self, model, noise_steps=100, embed_dim=32,
+    def __init__(self, model, noise_steps=100, embed_dim=32, n_classes=24,
                  device="cuda" if torch.cuda.is_available() else "cpu"):
         super().__init__()
         self.model = model.to(device)
@@ -29,8 +29,9 @@ class DiffusionModel(nn.Module):
         self.encoder = NumberEmbedder(128, device=device)
         self.max_grad_norm = 1.0  # Prevent exploding gradients
         self.diffusion_dim = N_STRINGS * self.embed_dim   # 6*32, the flat diffusion space
+        self.n_classes = n_classes
 
-        self.embeddings = nn.Embedding(N_CLASSES, self.embed_dim)
+        self.embeddings = nn.Embedding(n_classes, self.embed_dim)
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -56,7 +57,6 @@ class DiffusionModel(nn.Module):
         W = self.embeddings.weight                           # (n_classes, E)
         logits = x_str @ W.T                               # (B, T, 6, n_classes)
         return logits
-
 
     def prepare_noise_schedule(self):
         """Linear noise schedule."""
@@ -84,9 +84,8 @@ class DiffusionModel(nn.Module):
         # return torch.randint(low=1, high=self.noise_steps, size=(batch_size,))
 
     def sample_timesteps_val(self, batch_size, device, dim):
-        """Sample random timesteps."""
-        # sigmas = UniformDistribution()(num_samples=batch_size, device=device)
-        sigmas = torch.Tensor([0.2, 0.4, 0.6, 0.8]).to(device)
+        """Sample deterministic timesteps."""
+        sigmas = torch.linspace(0.0, 1.0, batch_size, device=device)
         sigmas_batch = extend_dim(sigmas, dim=dim)
         return sigmas, sigmas_batch
 
@@ -139,8 +138,8 @@ class DiffusionModel(nn.Module):
 
         return frets, pc
 
-    def _forward_pass(self, target, prev, audio, cond, sigmas_fn):
-        # Save integer IDs BEFORE embedding (needed for rounding loss)
+    def _forward_pass(self, target, audio, cond, sigmas_fn):
+        # Save integer IDs before embedding (for rounding loss)
         target_ids = target.argmax(dim=-1)  # (B, T, 6)
 
         target_emb = self.encode(target)  # (B, T, 6*E)
@@ -166,13 +165,12 @@ class DiffusionModel(nn.Module):
 
     def train_step(self, optimizer, batch, losses_str):
         optimizer.zero_grad()
-        target, prev, audio, cond = batch
+        target, audio, cond = batch
 
         loss, x0_pred, target_ids = self._forward_pass(
-            target, prev, audio, cond, self.sample_timesteps
+            target, audio, cond, self.sample_timesteps
         )
 
-        # x0 = torch.argmax(self.decode(x0_pred), dim=-1)
         tab_logits = self.decode(x0_pred)
         soft_frets = soft_fret_expectation(tab_logits)
         soft_pc = pc_probs_to_soft_binary(tab_logits)
@@ -185,83 +183,54 @@ class DiffusionModel(nn.Module):
             target_frets = torch.stack(target_frets, dim=0).to(self.device)
             pcs = torch.stack(pcs, dim=0).to(self.device)
         
-        # (B, 6) raw pc indices → (B, 12) binary chord vectors
+        # (B, T, 6) raw pc indices → (B, T, 12) binary chord vectors
         pc_gt_bin = pc_tokens_to_binary(pcs.to(self.device))  # ground truth
 
-        hs_loss = hand_span_penalty(soft_frets).mean()
-        string_loss = string_activity_jaccard_loss(soft_frets, target_frets).mean()
+        hs_loss = hand_span_penalty_soft(tab_logits).mean()
+        string_loss = string_activity_jaccard_loss_soft(tab_logits, target_frets).mean()
         fret_loss = fret_distance(soft_frets, target_frets).mean()
         pc_loss = jaccard_tonal_distance(soft_pc, pc_gt_bin).mean()
         cof_loss = cof_chord_distance(soft_pc, pc_gt_bin).mean()
-        """
-        played_soft = 1.0 - torch.softmax(tab_logits, dim=-1)[..., 0]
-        string_loss = F.binary_cross_entropy(played_soft, (target_ids != 0).float())
-        fret_loss = F.l1_loss(soft_frets, target_frets.float())
-        pc_loss = F.mse_loss(soft_pc, pc_gt_bin)
-        cof_loss = cof_chord_distance(soft_pc, pc_gt_bin).mean()
-        hs_loss = hand_span_penalty(soft_frets).mean()
-        """
-        
-        """
-        pc_preds, frets_preds, frets, pcs = [], [], [], []
-        for b in range(x0_pred.size(0)):
-            frets_pred, pc_pred = self._build_pc_frets(x0[b])
-            fret, pc = self._build_pc_frets(target_ids[b])
-            frets.append(fret)
-            pcs.append(pc)
-            frets_preds.append(frets_pred)
-            pc_preds.append(pc_pred)
-
-        frets_preds = torch.stack(frets_preds, dim=0).to(self.device)
-        pc_preds = torch.stack(pc_preds, dim=0).to(self.device)
-        frets = torch.stack(frets, dim=0).to(self.device)
-        pcs = torch.stack(pcs, dim=0).to(self.device)
-        
-        # (B, 6) raw pc indices → (B, 12) binary chord vectors
-        pc_gt_bin = pc_tokens_to_binary(pcs.to(self.device))  # ground truth
-        pc_pred_bin = pc_tokens_to_binary(pc_preds.to(self.device))  # from argmax prediction
-        hs_loss = hand_span_penalty(frets_preds).mean()
-        string_loss = string_activity_jaccard_loss(frets_preds, frets).mean()
-        fret_loss = fret_distance(frets_preds, frets).mean()
-        pc_loss = jaccard_tonal_distance(pc_pred_bin, pc_gt_bin).mean()
-        cof_loss = cof_chord_distance(pc_pred_bin, pc_gt_bin).mean()
-        #cof_loss = cof_chord_distance(pc_vec_a=pc_pred_bin, pc_vec_b=pc_gt_bin, fret_a=frets_preds, fret_b=frets).mean()
-        """
+    
+        lambda_f = 1
+        lambda_p = 0.1
+        lambda_c = 0.1
+        lambda_s = 0.1
+        lambda_h = 0.1
         
         if "f" in losses_str:
-            loss = loss + 0.1 * fret_loss
+            loss = loss + lambda_f * fret_loss
         if "p" in losses_str:
-            loss = loss + 0.1 * pc_loss
+            loss = loss + lambda_p * pc_loss
         if "c" in losses_str:
-            loss = loss + cof_loss
+            loss = loss + lambda_c * cof_loss
         if "s" in losses_str:
-            loss = loss + string_loss
+            loss = loss + lambda_s * string_loss
         if "h" in losses_str:
-            loss = loss + hs_loss
+            loss = loss + lambda_h * hs_loss
 
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
         optimizer.step()
-        return loss.item()
+        return loss.item(), fret_loss.item(), pc_loss.item(), cof_loss.item(), string_loss.item(), hs_loss.item()
 
     def val_step(self, batch):
-        target, prev, audio, cond = batch
+        target, audio, cond = batch
 
         loss, x0_pred, target_ids = self._forward_pass(
-            target, prev, audio, cond, self.sample_timesteps_val
+            target, audio, cond, self.sample_timesteps_val
         )
 
         acc = self.avg_acc(x0_pred, target_ids)
         return loss.item(), acc
 
     @torch.no_grad()
-    def sample(self, input, prev_input, audio, cond, num_steps):
+    def sample(self, input, audio, cond, num_steps, return_process=False):
         """Sample new audios from the diffusion model."""
         input = self.encode(input)  # (B, seq_len, embed_dim)
-        if prev_input is not None:
-            prev_input = self.encode(prev_input)  # (B, seq_len, embed_dim)
+      
         x_noisy = torch.randn_like(input).to(self.device)
-        x_noisy /= x_noisy.max()
+        #x_noisy /= x_noisy.max()
         b = x_noisy.shape[0]
         sigmas = LinearSchedule()(num_steps + 1, device=x_noisy.device)
         sigmas_batch = repeat(sigmas, "i -> i b", b=b)
@@ -270,17 +239,15 @@ class DiffusionModel(nn.Module):
 
         sigmas_t_encoded = self.encoder.to_embedding(sigmas)
         sigmas_t_encoded_batch = repeat(sigmas_t_encoded, "l i -> l b i", b=b)
-        # sigmas_t_encoded_batch = extend_dim(sigmas_t_encoded_batch, dim=x_noisy.ndim + 1)
 
         progress_bar = tqdm(range(num_steps), disable=True)
         # Progressively denoise the audios
-        # for i in tqdm(reversed(range(1, num_steps)), desc="Sampling...", total=self.noise_steps - 1):
         for i in progress_bar:
             v_pred = self.model(x_noisy, sigmas_t_encoded_batch[i], prev_input, audio, cond)
             x_pred = alphas[i] * x_noisy - betas[i] * v_pred
             noise_pred = betas[i] * x_noisy + alphas[i] * v_pred
             x_noisy = alphas[i + 1] * x_pred + betas[i + 1] * noise_pred
             progress_bar.set_description(f"Sampling (noise={sigmas[i + 1]:.2f})")
-            # if return_process:
-            #   intermediate_audios.append(x_noisy.cpu())
+            if return_process:
+              intermediate_audios.append(x_noisy.cpu())
         return x_noisy
