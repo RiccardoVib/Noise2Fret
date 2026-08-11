@@ -14,7 +14,7 @@ import numpy as np
 
 def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inject_feature_dim, feat, embed_dim,
                           batch_size, epochs=10, lr=1e-4, losses_str=[""], train_model=True):
-    """Train the diffusion model on a dataset."""
+
     # Setup dataloader
     dataset = GOATFrameDataset(
         root_dir=data_dir / "GOAT",
