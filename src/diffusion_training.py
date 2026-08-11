@@ -5,16 +5,15 @@ from CheckpointManager import DiffusionCheckpointManager
 from U_NET_Token import TokenUNet
 from GOATDataset import GOATFrameDataset
 from DiffusionUtils import save_losses, plot_losses
-from utils import write_json, wait_for_allowed_time
+from utils import write_json
 import json
 from DiffusionModel import DiffusionModel
 from FeaturesExtractor import compute_audio_features
 from tab_metrics import tab_metrics, print_tab_metrics
 import numpy as np
 
-
 def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inject_feature_dim, feat, embed_dim,
-                          batch_size, use_pre, epochs=10, lr=1e-4, losses_str=[""], train_model=True):
+                          batch_size, epochs=10, lr=1e-4, losses_str=[""], train_model=True):
     """Train the diffusion model on a dataset."""
     # Setup dataloader
     dataset = GOATFrameDataset(
@@ -30,7 +29,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
 
     train_dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4,
                                                    pin_memory=True)
-    test_dataloader = torch.utils.data.DataLoader(dataset_test, batch_size=4, shuffle=False, drop_last=True,
+    test_dataloader = torch.utils.data.DataLoader(dataset_test, batch_size=4, shuffle=False,
                                                   num_workers=4, pin_memory=True)
 
     early_stopping_count = 0
@@ -58,7 +57,6 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
     model = TokenUNet(in_channels=dataset.n_strings * embed_dim,
                       base_channels=base_channels,
                       inject_feature_dim=inject_feature_dim,
-                      use_pre=use_pre,
                       max_len=dataset.max_events
                       )
 
@@ -104,33 +102,40 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
     else:
         print("Starting training from scratch")
         best_loss = float('inf')
-
+      
     if train_model:
         train_losses, val_losses = [], []
         # Training loop
         for epoch in range(epochs):
             train_batches = 0
             train_loss, val_loss = 0, 0
+            fret_train_loss, pc_train_loss, cof_train_loss, s_train_loss, h_train_loss = 0, 0, 0, 0, 0
+
             model.train()
-            for audio, token, prev_token in tqdm(train_dataloader, desc=f"Epoch {epoch + 1}/{epochs}",
+            for audio, token in tqdm(train_dataloader, desc=f"Epoch {epoch + 1}/{epochs}",
                                                  disable=True):
                 audio = audio.to(diffusion.device)
                 token = token.to(diffusion.device)
-                prev_token = prev_token.to(diffusion.device)
                 
                 # Compute audio features before training step
                 features = compute_audio_features(audio, sr=16000)
             
-                features = torch.cat(
-                            [features["stft_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
-                
-                loss = diffusion.train_step(optimizer=optimizer, batch=[token, prev_token, audio, features],
+                features = torch.cat([features["stft_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
+                                
+                loss, fret_loss, pc_loss, cof_loss, string_loss, hs_loss = diffusion.train_step(optimizer=optimizer, batch=[token, prev_token, None, features],
                                             losses_str=losses_str)
                 train_loss += loss
+                fret_train_loss += fret_loss
+                pc_train_loss += pc_loss
+                cof_train_loss += cof_loss
+                s_train_loss += string_loss
+                h_train_loss += hs_loss
                 train_batches += 1
 
             avg_train_loss = train_loss / train_batches
             train_losses.append(avg_train_loss)
+            
+            print(f'Epoch {epoch + 1}: Fret Loss: {fret_train_loss/train_batches:.6f}, Pc Loss: {pc_train_loss/train_batches:.6f}, Cof Loss: {cof_train_loss/ train_batches:.6f}, String Loss: {s_train_loss/ train_batches:.6f}, HandSpan Loss: {h_train_loss/ train_batches:.6f}\n')
 
             # Validation phase
             if (epoch + 1) % 1 == 0:
@@ -138,11 +143,10 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
                 val_batches = 0
                 model.eval()
                 with torch.no_grad():
-                    for audio, token, prev_token in tqdm(test_dataloader, desc=f"Validation Epoch {epoch + 1}",
+                    for audio, token in tqdm(test_dataloader, desc=f"Validation Epoch {epoch + 1}",
                                                          disable=True):
                         audio = audio.to(diffusion.device)
                         token = token.to(diffusion.device)
-                        prev_token = prev_token.to(diffusion.device)
                         features = compute_audio_features(audio, sr=16000)
                 
                         features = torch.cat(
@@ -242,8 +246,6 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
 
     # Visualize the diffusion process
     model.eval()
-    zero_token = torch.zeros(1, dataset.max_events, dataset.n_strings, dataset.n_classes, dtype=torch.float32)
-    zero_token[:, :, :, 0] = 1.0
     gt_chunks, pred_chunks = [], []
     val_dataloader = torch.utils.data.DataLoader(dataset_val, batch_size=1, shuffle=False, pin_memory=True)
                        
@@ -254,16 +256,11 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
             token = token.to(diffusion.device)
             # start_time = time.time()
 
-            if torch.equal(prev_token, zero_token):
-               prev_token = prev_token.to(diffusion.device)
-            else:
-               prev_token = predicted_indices
-
             features = compute_audio_features(audio, sr=16000)
             features = torch.cat(
                     [features["stft_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
 
-            predicted_indices, predicted_tab = visualize_samples(token, prev_token, audio, features, diffusion)
+            predicted_indices, predicted_tab = visualize_samples(token, audio, features, diffusion)
 
             # normalise both to integer IDs (B, T, 6) before storing
             gt_ids = token.argmax(dim=-1).cpu() if token.ndim == 4 else token.cpu()
@@ -392,20 +389,15 @@ if __name__ == "__main__":
     epochs = 1000
     lr = 3e-4
     inject_feature_dim = 515
-    use_pre = True
     embed_dim = 32
     hidden_dims = 64
 
-    addtional_name = ""
-
-
     model_name = "_".join(
             ['Audio2Tab', "H", str(hidden_dim), "I", str(inject_feature_dim), "U", str(use_pre)])
-    model_path = script_dir.parent.parent / "TrainedModels" / (model_name + addtional_name)
+    model_path = script_dir.parent.parent / "TrainedModels" / (model_name)
     losses_str = [""]
     print(f"model_name: {model_name}")
     print(f"model_path: {model_path}")
-
 
     train_diffusion_model(data_dir=ROOT_DIR,
                               model_path=model_path,
@@ -414,8 +406,8 @@ if __name__ == "__main__":
                               inject_feature_dim=inject_feature_dim,
                               embed_dim=embed_dim,
                               batch_size=n_batches,
-                              use_pre=use_pre,
                               epochs=epochs,
                               lr=lr,
                               losses_str=losses_str,
+                              train_model=True
                               )
