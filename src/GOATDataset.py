@@ -6,14 +6,12 @@ import torch
 import torchaudio
 from torch.utils.data import Dataset
 
+# ── Constants ──────────────────────────────────
 # Open-string MIDI pitches per string (same as DadaGPDataset)
 # String index 0-based: s1=E2, s2=A2, s3=D3, s4=G3, s5=B3, s6=E4
 OPEN_PITCHES = [40, 45, 50, 55, 59, 64]
 PAD_FRET = -1
 PAD_PC   = -1
-
-
-# ── Constants ──────────────────────────────────
 N_STRINGS   = 6
 
 class GOATFrameDataset(Dataset):
@@ -23,10 +21,6 @@ class GOATFrameDataset(Dataset):
         - axis 1: fret class   (0=muted, 1=open/fret0, 2=fret1, ..., 20=fret19)
 
     """
-    PAD_NOTE_ID  = 0
-    PAD_CHORD_ID = 0
-    CHORD_LEN    = 7
-
     def __init__(
         self,
         root_dir: str,
@@ -36,9 +30,6 @@ class GOATFrameDataset(Dataset):
         self.root_dir         = root_dir
         self.data_dir         = data_dir
         self.fs               = 16000
-
-        self.pad_note_id  = 0
-        self.pad_chord_id = 0
         self.chord_len    = 7
         self.n_strings    = N_STRINGS
 
@@ -86,6 +77,40 @@ class GOATFrameDataset(Dataset):
         all_rows  = self._load_metadata(data_dir)
         self.meta = pd.concat(all_rows, ignore_index=True)
 
+    @staticmethod
+    def _count_events(chords_val) -> int:
+        """
+        Number of chord-groups ('|'-separated) in a raw 'chords' cell.
+        Returns 0 for empty/NaN cells (frame with no active notes).
+        """
+        if pd.isna(chords_val):
+            return 0
+        s = str(chords_val).strip()
+        if not s or s == "nan":
+            return 0
+        return len(s.split("|"))
+
+    def _filter_multi_event(self, meta: pd.DataFrame) -> pd.DataFrame:
+        """
+        Discard any frame containing more than one simultaneous chord-group
+        (i.e. keep only frames with 0 or 1 event).
+        """
+        n_events = meta["chords"].apply(self._count_events)
+        keep_mask = n_events <= 1
+
+        n_total = len(meta)
+        n_removed = int((~keep_mask).sum())
+        n_kept = int(keep_mask.sum())
+        pct_removed = 100 * n_removed / n_total if n_total else 0.0
+
+        print(
+            f"[GOATFrameDataset] discard_multi_event=True: removed "
+            f"{n_removed}/{n_total} frames ({pct_removed:.2f}%) with >1 "
+            f"simultaneous event; {n_kept} frames remain."
+        )
+
+        return meta[keep_mask].reset_index(drop=True)
+        
     def _load_metadata(self, root_dir):
         item_dirs = sorted(
             glob.glob(os.path.join(root_dir, "item_*")),
@@ -129,9 +154,9 @@ class GOATFrameDataset(Dataset):
             if token:
                 tokens.append(token)
         return tokens
-
+        
     def _encode_chord_frets(self, token_strings: list[str]) -> list[int]:
-        frets = [PAD_FRET] * (self.CHORD_LEN)
+        frets = [PAD_FRET] * (self.chord_len)
         for t in token_strings:
             string_idx, fret, _ = self._parse_token(t)
             if string_idx is not None and fret != PAD_FRET:
@@ -140,13 +165,12 @@ class GOATFrameDataset(Dataset):
 
     def _encode_chord_pcs(self, token_strings: list[str]) -> list[int]:
         """Token strings → PCs by string order (1→0, 2→1, ...) → PAD_PC-padded."""
-        pcs = [PAD_PC] * (self.CHORD_LEN)  # init all strings empty
+        pcs = [PAD_PC] * (self.chord_len)  # init all strings empty
         for t in token_strings:
             string_idx, _, pc = self._parse_token(t)
             if string_idx is not None and pc != PAD_PC:
                 pcs[string_idx] = pc
         return pcs[:-1]
-
     @staticmethod
     def _parse_token(token_str: str):
         """
@@ -197,20 +221,7 @@ class GOATFrameDataset(Dataset):
         # ── Target: (6, F) one-hot matrix ────────────────────────────
         target = self._build_tab_target(row)          # (6, F) float32
 
-        # ── Previous target ───────────────────────────────────────────
-        is_first_frame = (
-            idx == 0
-            or self.meta.iloc[idx - 1]["_npy_path"] != npy_path
-        )
-        if is_first_frame:
-            prev_target = []
-            while len(prev_target) < self.max_events:
-                prev_target.append(self._empty_tab_target())   # all strings muted
-            prev_target =  torch.stack(prev_target, dim=0)
-        else:
-            prev_target = self._build_tab_target(self.meta.iloc[idx - 1])
-
-        return audio, target, prev_target
+        return audio, target
 
     # ── target helpers ────────────────────────────────────────────────────
 
