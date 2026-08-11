@@ -1,14 +1,3 @@
-"""
-Standalone FretNet-style architecture for discrete guitar tablature prediction only.
-
-Stripped down from cwitkowitz/guitar-transcription-continuous's FretNet:
-  - relative pitch-deviation head removed (was: cont_layer / L2LogisticBank / CBernoulliBank)
-  - onset-detection head removed (was: estimate_onsets / onsets_layer)
-  - no dependency on amt_tools or guitar_transcription_inhibition
-  - loss + targets operate directly on one-hot fret-class tensors
-"""
-
-
 import torch
 import torch.nn.functional as F
 import math
@@ -16,6 +5,12 @@ from torch import nn
 
 class FretNet(nn.Module):
     """
+    FretNet-style architecture for discrete guitar tablature prediction only.
+
+    from cwitkowitz/guitar-transcription-continuous:
+      - relative pitch-deviation head removed
+      - onset-detection head removed
+
      CNN encoder (identical to FretNet/TabCNN) + a per-string fret-classification head.
 
      Input
@@ -252,7 +247,8 @@ class FretNet(nn.Module):
 
 class TabCNN(nn.Module):
     """
-    Exact architecture mirror of the original Keras model:
+    Architecture mirror of the original Keras model     
+    from andywiggins/tab-cnn:
         Conv2d(32,3×3) → Conv2d(64,3×3) → Conv2d(64,3×3)
         → MaxPool(2×2) → Dropout(0.25)
         → Flatten → Linear(128) → Dropout(0.5)
