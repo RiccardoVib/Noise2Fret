@@ -77,7 +77,7 @@ Ensure you have loaded the dataset into the chosen datasets folder.
 
 --model_path - Path to save or load the model checkpoint [str] (default="./models/model.pt")
 
---noise_steps - Number of diffusion noise steps [int] (default=1000)
+--noise_steps - Number of diffusion noise steps [int] (default=20)
 
 --base_channels - Hidden dimension size (base number of channels) of the network [int] (default=64)
 
@@ -99,7 +99,7 @@ cd ./src
 python training.py \
   --data_dir ./data \
   --model_path ./models/my_model \
-  --noise_steps 1000 \
+  --noise_steps 20 \
   --base_channels 64 \
   --embed_dim 32 \
   --batch_size 128 \
@@ -117,7 +117,7 @@ cd ./
 python training.py \
   --data_dir ./data \
   --model_path ./models/my_model \
-  --noise_steps 1000 \
+  --noise_steps 20 \
   --base_channels 64 \
   --embed_dim 32 \
   --batch_size 128 \
@@ -136,7 +136,7 @@ cd ./src
 python training_guitarSet.py \
   --data_dir ./data \
   --model_path ./models/my_model \
-  --noise_steps 1000 \
+  --noise_steps 20 \
   --base_channels 64 \
   --embed_dim 32 \
   --batch_size 128 \
@@ -169,5 +169,10 @@ python baselines_training.py \
 If you use the code included in this repository or any part of it, please acknowledge its authors by adding a reference to these publications:
 
 ```
-
+@inproceedings{simionato2026playability,
+  title={Playability-Aware Audio-To-Tablature Guitar Transcription Via Diffusion Models},
+  author={Simionato, Riccardo and Bigo, Louis},
+  booktitle={Proceedings of the 27th International Society for Music Information Retrieval Conference},
+  year={2026},
+}
 ```
