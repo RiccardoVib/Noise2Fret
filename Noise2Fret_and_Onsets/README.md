@@ -87,8 +87,6 @@ Ensure you have loaded the dataset into the chosen datasets folder.
 --epochs - Number of training epochs [int] (default=60)
 
 --lr - Initial learning rate [float] (default=3e-4)
-
---losses_str - Comma-separated list of loss functions to use [lst[str]] (default=[""])
  
 --train_model - When True, train the model before test [bool] (default=False)
 
@@ -104,7 +102,6 @@ python training.py \
   --batch_size 128 \
   --epochs 60 \
   --lr 3e-4 \
-  --losses_str [""]
   --train_model True
 ```
 
@@ -122,7 +119,6 @@ python training.py \
   --batch_size 128 \
   --epochs 60 \
   --lr 3e-4 \
-  --losses_str [""]
   --train_model False
 ```
 
@@ -141,7 +137,6 @@ python training_guitarSet.py \
   --batch_size 128 \
   --epochs 60 \
   --lr 3e-4 \
-  --losses_str [""]
   --train_model True
 ```
 
