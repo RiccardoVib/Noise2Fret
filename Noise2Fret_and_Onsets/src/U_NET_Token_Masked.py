@@ -645,10 +645,8 @@ class TokenUNet(nn.Module):
 
         # Downsample
         x = self.downsample(skip4)
-        mask_mid = downsample_mask(mask, x.shape[-1]) if mask is not None else None
-        mask_mid = None
         # Middle
-        x = self.mid(x, t, audio_feat, freq_features, mask=mask_mid, **oc)
+        x = self.mid(x, t, audio_feat, freq_features, mask=None, **oc)
 
         # Upsample
         x = self.upsample(x)
