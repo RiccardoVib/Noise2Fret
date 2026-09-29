@@ -201,7 +201,6 @@ class TokenUNet(nn.Module):
         super().__init__()
         self.in_channels = in_channels
         self.pos_emb = nn.Embedding(max_len, in_channels)
-        self.use_pre = use_pre
 
         # Time embedding
         self.time_emb = nn.Sequential(
