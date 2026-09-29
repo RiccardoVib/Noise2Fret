@@ -252,7 +252,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
     # Visualize the diffusion process
     model.eval()
     gt_chunks, pred_chunks = [], []
-    val_dataloader = torch.utils.data.DataLoader(dataset_val, batch_size=1, shuffle=False, pin_memory=True)
+    test_dataloader = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, pin_memory=True)
                        
     with torch.no_grad():
         for audio, token, prev_token in tqdm(test_dataloader, desc=f"Test",
