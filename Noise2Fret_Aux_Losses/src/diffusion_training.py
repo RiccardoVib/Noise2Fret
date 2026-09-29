@@ -219,7 +219,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
                     features = torch.cat(
                                 [features["stft_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
          
-                    predicted_indices, predicted_tab = visualize_samples(token, prev_token, audio, features, diffusion)
+                    predicted_indices, predicted_tab = visualize_samples(token, audio, features, diffusion)
 
                     # decode whole batch at once (shape B, maxevents)
                     predicted_item, target_item = vectors_to_text_token(predicted_indices, token)
@@ -332,9 +332,9 @@ def vectors_to_text_token(predicted_indices, token):
     return predicted_decoded, token_decoded
 
 
-def visualize_samples(inputs, prev_input, audio, cond, diffusion):
+def visualize_samples(inputs, audio, cond, diffusion):
     """Visualize samples from the diffusion model."""
-    z = diffusion.sample(input=inputs, prev_input=prev_input, audio=audio, cond=cond,
+    z = diffusion.sample(input=inputs, audio=audio, cond=cond,
                          num_steps=diffusion.noise_steps)
 
     tab = diffusion.decode(z)
