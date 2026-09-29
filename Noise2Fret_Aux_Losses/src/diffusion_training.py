@@ -398,7 +398,7 @@ if __name__ == "__main__":
     hidden_dims = 64
 
     model_name = "_".join(
-            ['Audio2Tab', "H", str(hidden_dim), "I", str(inject_feature_dim), "U", str(use_pre)])
+            ['Audio2Tab', "H", str(hidden_dim), "I", str(inject_feature_dim), "U"])
     model_path = script_dir.parent.parent / "TrainedModels" / (model_name)
     losses_str = [""]
     print(f"model_name: {model_name}")
