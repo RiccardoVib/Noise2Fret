@@ -248,7 +248,7 @@ class DiffusionModel(nn.Module):
         progress_bar = tqdm(range(num_steps), disable=True)
         # Progressively denoise the audios
         for i in progress_bar:
-            v_pred = self.model(x_noisy, sigmas_t_encoded_batch[i], prev_input, audio, cond)
+            v_pred = self.model(x_noisy, sigmas_t_encoded_batch[i], audio, cond)
             x_pred = alphas[i] * x_noisy - betas[i] * v_pred
             noise_pred = betas[i] * x_noisy + alphas[i] * v_pred
             x_noisy = alphas[i + 1] * x_pred + betas[i + 1] * noise_pred
