@@ -51,10 +51,8 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
         'hidden_size': int(base_channels),
         'batch_size': int(batch_size),
         'inject_feature_size': int(inject_feature_dim),
-        'feat': feat,
         'losses_str': losses_str,
     }
-    print(f"feat: {feat}")
     print(f"losses: {losses_str}")
     print(f"model_params: {model_params}")
     print(f"Saving model params in {model_path}")
