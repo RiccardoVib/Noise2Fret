@@ -235,7 +235,6 @@ class DiffusionModel(nn.Module):
         input = self.encode(input)  # (B, seq_len, embed_dim)
       
         x_noisy = torch.randn_like(input).to(self.device)
-        #x_noisy /= x_noisy.max()
         b = x_noisy.shape[0]
         sigmas = LinearSchedule()(num_steps + 1, device=x_noisy.device)
         sigmas_batch = repeat(sigmas, "i -> i b", b=b)
