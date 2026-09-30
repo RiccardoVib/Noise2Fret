@@ -107,7 +107,7 @@ class DiffusionModel(nn.Module):
         logits = self.decode(x0_pred)                      # (B, T, 6, n_classes)
         # CE expects (N, C) and (N,)
         return F.cross_entropy(
-            logits.reshape(-1, N_CLASSES),             # (B*T*6, n_classes)
+            logits.reshape(-1, self.n_classes),             # (B*T*6, n_classes)
             target_ids.reshape(-1)                          # (B*T*6,)
         )
 
