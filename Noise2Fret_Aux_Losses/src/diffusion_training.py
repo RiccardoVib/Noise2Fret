@@ -84,7 +84,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
     model = model.to(device)
     print(all(p.is_cuda for p in model.parameters()))  # True if all params on GPU
 
-    diffusion = DiffusionModel(model=model, noise_steps=noise_steps, embed_dim=embed_dim).to(device)
+    diffusion = DiffusionModel(model=model, noise_steps=noise_steps, embed_dim=embed_dim, n_classes=dataset.n_classes)).to(device)
     optimizer = torch.optim.AdamW(
         list(model.parameters()) + list(diffusion.encoder.parameters()) + list(diffusion.embeddings.parameters()),
         lr=lr,
