@@ -127,7 +127,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
             
                 features = torch.cat([features["stft_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
                                 
-                loss, fret_loss, pc_loss, cof_loss, string_loss, hs_loss = diffusion.train_step(optimizer=optimizer, batch=[token, prev_token, None, features],
+                loss, fret_loss, pc_loss, cof_loss, string_loss, hs_loss = diffusion.train_step(optimizer=optimizer, batch=[token, audio, features],
                                             losses_str=losses_str)
                 train_loss += loss
                 fret_train_loss += fret_loss
@@ -157,7 +157,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
                         features = torch.cat(
                                     [features["stft_mag"], features["spectral_flux"], features["brightness"]], dim=-1)
                     
-                        loss, acc = diffusion.val_step(batch=[token, prev_token, audio, features])
+                        loss, acc = diffusion.val_step(batch=[token, audio, features])
 
                         total_val_loss += loss
                         total_acc += acc
@@ -255,7 +255,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
     test_dataloader = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, pin_memory=True)
                        
     with torch.no_grad():
-        for audio, token, prev_token in tqdm(test_dataloader, desc=f"Test",
+        for audio, token in tqdm(test_dataloader, desc=f"Test",
                                              disable=True):
             audio = audio.to(diffusion.device)
             token = token.to(diffusion.device)
