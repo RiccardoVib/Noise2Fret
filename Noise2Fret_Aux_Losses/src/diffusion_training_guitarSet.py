@@ -138,7 +138,7 @@ def tab_pad_collate(batch):
 
 
 def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embed_dim, inject_feature_dim,
-                          batch_size, epochs=10, lr=1e-4, use_pre=False, losses_str=[""], train_model=True):
+                          batch_size, epochs=10, lr=1e-4, losses_str=[""], train_model=True):
     """Train the diffusion model on a dataset."""
 
     data_path = os.path.join(data_dir / "GuitarSet/",
@@ -262,7 +262,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
                 features = torch.cat(
                     [stft, sf, b], dim=-1)
                 
-                loss, fret_loss, pc_loss, cof_loss, string_loss, hs_loss = diffusion.train_step(optimizer=optimizer, batch=[token, None, audio, features],
+                loss, fret_loss, pc_loss, cof_loss, string_loss, hs_loss = diffusion.train_step(optimizer=optimizer, batch=[token, audio, features],
                                             losses_str=losses_str)
                 train_loss += loss
                 fret_train_loss += fret_loss
@@ -294,7 +294,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
                         features = torch.cat(
                             [stft, sf, b], dim=-1)
                 
-                        loss, acc = diffusion.val_step(batch=[token, None, audio, features])
+                        loss, acc = diffusion.val_step(batch=[token, audio, features])
 
                         total_val_loss += loss
                         total_acc += acc
@@ -352,7 +352,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
                 # Generate and visualize samples
                 if ((epoch + 1) % 100 == 0 and epoch != epochs - 1) or epochs == 1:
                   
-                    predicted_indices, predicted_tab = visualize_samples(token, None, audio, features, diffusion)
+                    predicted_indices, predicted_tab = visualize_samples(token, audio, features, diffusion)
 
                     # decode whole batch at once (shape B, maxevents)
                     predicted_item, target_item = vectors_to_text_token(predicted_indices, token)
@@ -393,7 +393,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
             features = torch.cat(
                 [stft, sf, b], dim=-1)
 
-            predicted_indices, predicted_tab = visualize_samples(token, None, audio, features, diffusion)
+            predicted_indices, predicted_tab = visualize_samples(token, audio, features, diffusion)
             predicted_item, target_item = vectors_to_text_token(predicted_indices, token)
 
             # normalise both to integer IDs (B, T, 6) before storing
@@ -461,9 +461,9 @@ def vectors_to_text_token(predicted_indices, token):
     return predicted_decoded, token_decoded
 
 
-def visualize_samples(inputs, prev_input, audio, cond, diffusion):
+def visualize_samples(inputs, audio, cond, diffusion):
     """Visualize samples from the diffusion model."""
-    z = diffusion.sample(input=inputs, prev_input=prev_input, audio=audio, cond=cond,
+    z = diffusion.sample(input=inputs, audio=audio, cond=cond,
                          num_steps=diffusion.noise_steps)
 
     tab = diffusion.decode(z)
@@ -504,45 +504,3 @@ def print_results(tokens, predicted_tokens, output_path):
             f.write('\n')
 
     return
-    
-#Example usage
-if __name__ == "__main__":
-    import os
-    from pathlib import Path
-    from utils import find_folder_upward
-
-    current_dir = Path(os.getcwd())
-    print(f"current_dir: {current_dir}")
-    files_dir = find_folder_upward(folder_name="Files", start_path=current_dir)
-
-    script_path = Path(__file__).resolve()
-    script_dir = script_path.parent
-    n_batches = 32
-    embed_dim = 32
-    hidden_dim = 64
-    noise_steps = 500
-    epochs = 1000
-    lr = 3e-4
-    inject_feature_dim = 515
-    losses_str = [""]
-    
-    model_name = "_".join(
-            ['Audio2Tab', "GuitarSet", "H", str(hidden_dim), "I", str(inject_feature_dim), "U", str(use_pre), "_f1_p01_4"])#losses_str[0]])
-    model_path = script_dir.parent.parent / "TrainedModels" / (model_name)
-
-    print(f"model_name: {model_name}")
-    print(f"model_path: {model_path}")
-
-    train_diffusion_model(data_dir=files_dir,
-                              model_path=model_path,
-                              noise_steps=noise_steps,
-                              base_channels=hidden_dim,
-                              inject_feature_dim=inject_feature_dim,
-                              embed_dim=embed_dim,
-                              batch_size=n_batches,
-                              use_pre=use_pre,
-                              epochs=epochs,
-                              lr=lr,
-                              losses_str=losses_str,
-                              train_model=True
-                              )
