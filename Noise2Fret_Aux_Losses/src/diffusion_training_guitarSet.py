@@ -380,7 +380,8 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
     with open(filename, 'w') as f:
         json.dump(losses_dict, f)
     print(f"Losses saved to {filename}")
-        
+    diffusion.noise_steps = 1
+
     gt_chunks, pred_chunks = [], []
     with torch.no_grad():
         for cqt, frame_gt, token, frame_len, note_len, bpm, stft, sf, b, audio, audio_len in tqdm(val_loader, desc=f"Test", disable=True):
