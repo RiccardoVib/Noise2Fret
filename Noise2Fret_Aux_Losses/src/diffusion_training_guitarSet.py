@@ -5,6 +5,7 @@ Created on Tue Nov 2 08:14:08 2025
 
 """
 
+
 import torch
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -197,7 +198,6 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
     model = TokenUNet(in_channels=dataset.n_strings * embed_dim,
                       base_channels=base_channels,
                       inject_feature_dim=inject_feature_dim,
-                      use_pre=use_pre,
                       max_len=dataset.max_events
                       )
 
