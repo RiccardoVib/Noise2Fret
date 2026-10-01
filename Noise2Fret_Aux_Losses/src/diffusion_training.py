@@ -253,7 +253,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, inje
     model.eval()
     gt_chunks, pred_chunks = [], []
     test_dataloader = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, pin_memory=True)
-                       
+    diffusion.noise_steps = 1
     with torch.no_grad():
         for audio, token in tqdm(test_dataloader, desc=f"Test",
                                              disable=True):
@@ -386,11 +386,10 @@ if __name__ == "__main__":
     files_dir = find_folder_upward(folder_name="Files", start_path=current_dir)
     ROOT_DIR = files_dir / "GOAT_processed_0.1"
 
-
     script_path = Path(__file__).resolve()
     script_dir = script_path.parent
     n_batches = 128
-    noise_steps = 500
+    noise_steps = 20
     epochs = 1000
     lr = 3e-4
     inject_feature_dim = 515
