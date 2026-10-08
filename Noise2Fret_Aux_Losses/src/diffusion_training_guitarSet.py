@@ -5,7 +5,6 @@ Created on Tue Nov 2 08:14:08 2025
 
 """
 
-
 import torch
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -20,7 +19,8 @@ import random
 import numpy as np
 from torch.utils.data import Dataset
 from tab_metrics import print_tab_metrics, tab_metrics
-import os 
+import os
+from windowed_guitarset import WindowedGuitarSet, split_files, window_collate
 
 class CustomDataset(Dataset):
     def __init__(self, data_list, mode="tab", input_feature_type="cqt"):
@@ -140,39 +140,39 @@ def tab_pad_collate(batch):
 
 
 def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embed_dim, inject_feature_dim,
-                          batch_size, epochs=10, lr=1e-4, losses_str=[""], train_model=True):
+                          batch_size, sr, hop, win_s=0.1, epochs=10, lr=1e-4, losses_str=[""], train_model=True):
     """Train the diffusion model on a dataset."""
+  
+    data_path = os.path.join(data_dir / "GuitarSet/", "data", "npz", "original", "split", "*.npz")
+    files = glob.glob(data_path)
 
-    data_path = os.path.join(data_dir / "GuitarSet/",
-        "data", "npz", f"original", "split", "*.npz")
-    data_list = np.array(glob.glob(data_path, recursive=True))
-    train_ratio = 0.9
-    test_num = 0
-    dev_data_list = [datapath for datapath in data_list if not (
-        os.path.split(datapath)[1].startswith(f"0{test_num}_"))]
-    random.shuffle(dev_data_list)
-    train_data_list = dev_data_list[:int(
-        round(len(dev_data_list) * train_ratio))]
-    valid_data_list = dev_data_list[int(
-            round(len(dev_data_list) * train_ratio)):]
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print('cuda available :', torch.cuda.is_available())
+    num_workers = 0
+    if torch.cuda.is_available():
+        num_workers = 4
+    # split by recording, hold out player 00 as test
+    train_f, val_f, test_f = split_files(files, test_player="00", val_ratio=0.1, seed=0)
+    print(f"files  train {len(train_f)}  val {len(val_f)}  test {len(test_f)}")
 
-    dataset = CustomDataset(train_data_list)
-    dataset_test = CustomDataset(valid_data_list)
+    kw = dict(sr=sr, hop=hop, win_s=win_s, mute_index=0,   # 0 if class 0 = muted
+              cluster_frames=3, target="events", #snap_window=True,
+              drop_empty=True)            # drop windows with no onset event
+    dataset = WindowedGuitarSet(train_f, **kw)
+    # same sequence length on every split: take max_events from train
+    dataset_val = WindowedGuitarSet(val_f, max_events=dataset.max_events, **kw)
+    dataset_test = WindowedGuitarSet(test_f, max_events=dataset.max_events, **kw)
+    print(f"windows  train {len(dataset)}  val {len(dataset_val)}  test {len(dataset_test)}")
+
     train_loader = torch.utils.data.DataLoader(
-        dataset=dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        collate_fn=tab_pad_collate,
-        num_workers=4,
-        pin_memory=False)
-
+        dataset, batch_size=batch_size, shuffle=True,
+        collate_fn=window_collate, num_workers=num_workers, pin_memory=False)
     val_loader = torch.utils.data.DataLoader(
-        dataset=dataset_test,
-        batch_size=4,
-        shuffle=False,
-        collate_fn=tab_pad_collate,
-        num_workers=4,
-        pin_memory=False, drop_last=True)
+        dataset_val, batch_size=4, shuffle=False,
+        collate_fn=window_collate, num_workers=num_workers, pin_memory=False)
+    test_loader = torch.utils.data.DataLoader(
+        dataset_test, batch_size=batch_size, shuffle=False,
+        collate_fn=window_collate, num_workers=num_workers, pin_memory=False)
 
     early_stopping_count = 0
 
@@ -188,7 +188,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
         'inject_feature_size': int(inject_feature_dim),
         'losses_str': losses_str,
     }
-    
+
     print(f"losses: {losses_str}")
     print(f"model_params: {model_params}")
     print(f"Saving model params in {model_path}")
@@ -213,9 +213,6 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
     print('\n dataset len: ', len(dataset))
     print('\n epochs ', epochs)
     print('\n')
-    
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print('cuda available :', torch.cuda.is_available())
 
     model = model.to(device)
     print(all(p.is_cuda for p in model.parameters()))  # True if all params on GPU
@@ -227,7 +224,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
         betas=(0.9, 0.999),
         weight_decay=1e-2
     )
-    
+
     # Define the scheduler
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=epochs
@@ -253,8 +250,8 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
             fret_train_loss, pc_train_loss, cof_train_loss, s_train_loss, h_train_loss = 0, 0, 0, 0, 0
 
             model.train()
-            for cqt, frame_gt, token, frame_len, note_len, bpm, stft, sf, b, audio, audio_len in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{epochs}",  disable=True):
-                cqt = cqt.to(diffusion.device)
+            for _, _, token, _, _, _, stft, sf, b, audio, _ in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{epochs}",  disable=True):
+         
                 token = token.to(diffusion.device)
                 audio = audio.to(diffusion.device).unsqueeze(-1)
                 stft = stft.to(diffusion.device)
@@ -262,7 +259,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
                 b = b.to(diffusion.device)
                 features = torch.cat(
                     [stft, sf, b], dim=-1)
-                
+
                 loss, fret_loss, pc_loss, cof_loss, string_loss, hs_loss = diffusion.train_step(optimizer=optimizer, batch=[token, audio, features],
                                             losses_str=losses_str)
                 train_loss += loss
@@ -271,12 +268,12 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
                 cof_train_loss += cof_loss
                 s_train_loss += string_loss
                 h_train_loss += hs_loss
-                
+
                 train_batches += 1
 
             avg_train_loss = train_loss / train_batches
             train_losses.append(avg_train_loss)
-            
+
             print(f'Epoch {epoch + 1}: Fret Loss: {fret_train_loss/train_batches:.6f}, Pc Loss: {pc_train_loss/train_batches:.6f}, Cof Loss: {cof_train_loss/ train_batches:.6f}, String Loss: {s_train_loss/ train_batches:.6f}, HandSpan Loss: {h_train_loss/ train_batches:.6f}\n')
 
             # Validation phase
@@ -285,8 +282,8 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
                 val_batches = 0
                 model.eval()
                 with torch.no_grad():
-                    for cqt, frame_gt, token, frame_len, note_len, bpm, stft, sf, b, audio, audio_len in tqdm(val_loader, desc=f"Validation Epoch {epoch + 1}", disable=True):
-                        cqt = cqt.to(diffusion.device)
+                    for _, _, token, _, _, _, stft, sf, b, audio, _ in tqdm(val_loader, desc=f"Validation Epoch {epoch + 1}", disable=True):
+
                         token = token.to(diffusion.device)
                         audio = audio.to(diffusion.device).unsqueeze(-1)
                         stft = stft.to(diffusion.device)
@@ -294,7 +291,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
                         b = b.to(diffusion.device)
                         features = torch.cat(
                             [stft, sf, b], dim=-1)
-                
+
                         loss, acc = diffusion.val_step(batch=[token, audio, features])
 
                         total_val_loss += loss
@@ -352,7 +349,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
 
                 # Generate and visualize samples
                 if ((epoch + 1) % 100 == 0 and epoch != epochs - 1) or epochs == 1:
-                  
+
                     predicted_indices, predicted_tab = visualize_samples(token, audio, features, diffusion)
 
                     # decode whole batch at once (shape B, maxevents)
@@ -368,7 +365,7 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
             plot_losses(train_losses=train_losses, val_losses=val_losses, filename=filename)
             # Update learning rate scheduler with validation loss
             scheduler.step()
-            
+
     # Load best checkpoint
     best_checkpoint = ckpt_manager.load_best_checkpoint(diffusion, device=device)
     if best_checkpoint:
@@ -381,12 +378,11 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
     with open(filename, 'w') as f:
         json.dump(losses_dict, f)
     print(f"Losses saved to {filename}")
-    diffusion.noise_steps = 1
 
     gt_chunks, pred_chunks = [], []
     with torch.no_grad():
-        for cqt, frame_gt, token, frame_len, note_len, bpm, stft, sf, b, audio, audio_len in tqdm(val_loader, desc=f"Test", disable=True):
-            cqt = cqt.to(diffusion.device)
+        for _, _, token, _, _, _, stft, sf, b, audio, _ in tqdm(test_loader, desc=f"Test", disable=True):
+
             token = token.to(diffusion.device)
             audio = audio.to(diffusion.device).unsqueeze(-1)
             stft = stft.to(diffusion.device)
@@ -396,25 +392,24 @@ def train_diffusion_model(data_dir, model_path, noise_steps, base_channels, embe
                 [stft, sf, b], dim=-1)
 
             predicted_indices, predicted_tab = visualize_samples(token, audio, features, diffusion)
-            predicted_item, target_item = vectors_to_text_token(predicted_indices, token)
 
             # normalise both to integer IDs (B, T, 6) before storing
             gt_ids = token.argmax(dim=-1).cpu() if token.ndim == 4 else token.cpu()
             pred_ids = predicted_indices.argmax(dim=-1).cpu() if predicted_indices.ndim == 4 else predicted_indices.cpu()
             gt_chunks.append(gt_ids)
             pred_chunks.append(pred_ids)
-            
+
         all_gt = torch.cat(gt_chunks, dim=0)  # (N, T, 6)
         all_pred = torch.cat(pred_chunks, dim=0)  # (N, T, 6)
-        
+
         np.savez(model_path/"predictions", gt=all_gt, pred=all_pred)
         print(f"Predictions cached → {model_path}")
-   
-   
+
+
     avg = tab_metrics(all_gt, all_pred)
     out_path = model_path / f"metrics_Test.txt"
     print_tab_metrics(avg, save_path=str(out_path), prefix="Test set")
-        
+
     all_pred, all_gt = vectors_to_text_token(all_pred, all_gt)
     output_path = model_path / "predictions_TEST.txt"
     print_results(all_gt, all_pred, output_path)
@@ -506,3 +501,45 @@ def print_results(tokens, predicted_tokens, output_path):
             f.write('\n')
 
     return
+
+#Example usage
+if __name__ == "__main__":
+    import os
+    from pathlib import Path
+    from utils import find_folder_upward
+
+    current_dir = Path(os.getcwd())
+    print(f"current_dir: {current_dir}")
+    files_dir = find_folder_upward(folder_name="Files", start_path=current_dir)
+
+    script_path = Path(__file__).resolve()
+    script_dir = script_path.parent
+    n_batches = 32
+    embed_dim = 32
+    hidden_dim = 64
+    noise_steps = 20
+    epochs = 1000
+    lr = 3e-4
+    inject_feature_dim = 515
+    losses_str=["f", "p", "c", "s"]
+    
+    model_name = ""
+    model_path = script_dir.parent.parent / "TrainedModels" / (model_name)
+
+    print(f"model_name: {model_name}")
+    print(f"model_path: {model_path}")
+
+
+    train_diffusion_model(data_dir=files_dir,
+                              model_path=model_path,
+                              noise_steps=noise_steps,
+                              base_channels=hidden_dim,
+                              inject_feature_dim=inject_feature_dim,
+                              embed_dim=embed_dim,
+                              batch_size=n_batches,
+                              sr=22050, hop=512, win_s=0.1,
+                              epochs=epochs,
+                              losses_str=losses_str,
+                              lr=lr,
+                              train_model=True
+                              )
