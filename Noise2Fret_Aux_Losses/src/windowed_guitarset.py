@@ -1,37 +1,3 @@
-"""
-windowed_guitarset.py
-
-100 ms (configurable) windowed view over the 4-bar GuitarSet split .npz files
-written by midi_to_numpy.py.  Windows are cut on-the-fly, nothing is re-exported.
-
-GuitarSet annotates the six strings independently, so the notes of one strum start
-on different frames.  Here the onsets are CLUSTERED into chord events at load time:
-
-    * walk all string onsets in time order;
-    * a cluster starts at the first unassigned onset and takes every onset within
-      `cluster_frames` frames of THAT FIRST onset (no chaining, so a fast arpeggio
-      does not melt into one chord);
-    * if a string already has a note in the cluster, a new cluster is started;
-    * the event time is the first onset of the cluster; a window owns the events
-      whose time falls inside it.
-
-Per window you get:
-  * the audio samples of the window            (win_samples,)
-  * the feature frames (cqt / mel / stft / sf / b) whose centre falls in the window
-  * frame_gt : frame-level labels of those frames        (F, 6, C)  "everything sounding"
-  * note_gt  : target='events'   -> chord events          (max_events, 6, C) one-hot,
-                                    time ordered, padded with all-mute one-hots
-                                    note_len = number of real events
-               target='sounding' -> one class per string  (1, 6, C)
-
-Return order matches CustomDataset in diffusion_training_guitarSet.py:
-
-    input_features, frame_gt, note_gt, frame_len, note_len, bpm, stft, sf, b, audio, audio_len
-    (+ event_times  (max_events,) seconds from window start, -1 = padding, if return_event_times)
-
-Use `window_collate` as collate_fn (tab_pad_collate assumes note_gt.shape[0] == note_len).
-"""
-
 import os
 import random
 from collections import Counter, defaultdict
@@ -41,11 +7,11 @@ import torch
 from torch.utils.data import Dataset
 
 
-STRING_NAMES = ["E", "A", "D", "G", "B", "e"]     # string index 0..5 as in midi_to_numpy.py
+STRING_NAMES = ["E", "A", "D", "G", "B", "e"]
 
 
 # --------------------------------------------------------------------------- #
-# split helper: split by RECORDING, not by 4-bar chunk
+# split helper
 # --------------------------------------------------------------------------- #
 def split_files(files, test_player="00", val_ratio=0.1, seed=0):
     """
@@ -107,10 +73,7 @@ class WindowedGuitarSet(Dataset):
                      Event time = first onset of the cluster the event came from.
     max_events     : number of event slots per window.  None (default) -> the largest
                      count found in `files` after merging.  An int is used as is
-                     (e.g. pass the train value to val/test); windows with MORE different
-                     events than that are never truncated - they are REMOVED from the
-                     dataset and reported (`n_over_cap`, `over_cap_examples`,
-                     `write_over_cap_report(path)`).
+                     (e.g. pass the train value to val/test).
     mute_index     : index of the 'not played' class (-1 = last, midi_to_numpy
                      layout; 0 if class 0 = muted).
     drop_empty     : drop windows without any event (target='events') / without
@@ -171,7 +134,7 @@ class WindowedGuitarSet(Dataset):
                     self.n_over_cap += 1
                     self.over_cap_examples.append(
                         self._describe_window(self.files[fi], k, d["over"][k]))
-                    continue                          # never truncate: remove and report
+                    continue                         
                 if self.drop_empty:
                     keep = n_dist > 0 if self.target == "events" else self._window_has_notes(d, k)
                     if not keep:
@@ -215,7 +178,6 @@ class WindowedGuitarSet(Dataset):
             fh.write("\n".join(self.over_cap_examples) + "\n")
 
     def _what(self, plural_phrase=True):
-        """'DIFFERENT note sets' once identical events are merged, plain 'events' otherwise."""
         if self.merge != "none":
             return "DIFFERENT events" if plural_phrase else "different"
         return "events"
@@ -269,7 +231,7 @@ class WindowedGuitarSet(Dataset):
                 evs = self._merge_events(evs)
                 d["n_distinct"][k] = len(evs)
                 if self._cap is not None and len(evs) > self._cap:
-                    d["over"][k] = evs                       # reported; window gets removed
+                    d["over"][k] = evs                      
                 d["events"][k] = evs
 
         if self.preload:
@@ -421,13 +383,7 @@ class WindowedGuitarSet(Dataset):
 # collate
 # --------------------------------------------------------------------------- #
 def window_collate(batch):
-    """
-    Same 11-tuple as tab_pad_collate (+ event_times when present).  Only the frame
-    axis varies between windows (4 or 5 frames), so it is zero-padded to the longest
-    in the batch; note_gt already has a fixed length (max_events) and is stacked
-    directly.  note_len gives the number of real events; the rest is mute padding.
-    Batch is sorted by descending frame length like tab_pad_collate.
-    """
+   
     cols = list(zip(*batch))
     frame_len = np.asarray(cols[3])
     order = np.argsort(-frame_len, kind="stable")
@@ -456,51 +412,3 @@ def window_collate(batch):
     if len(cols) > 11:
         out = out + (torch.from_numpy(np.stack(take(11))),)      # event_times
     return out
-
-if __name__ == "__main__":
-
-
-    import glob, numpy as np
-    from collections import Counter
-    import os
-    from pathlib import Path
-    from utils import find_folder_upward
-
-    current_dir = Path(os.getcwd())
-    print(f"current_dir: {current_dir}")
-    files_dir = find_folder_upward(folder_name="Files", start_path=current_dir)
-    data_path = os.path.join(files_dir / "GuitarSet/", "data", "npz", "original", "split", "*.npz")
-
-    sr, hop, win_s = 22050, 512, 0.1          # use your config values
-    win = int(round(win_s * sr))
-    ev_hist, conflicts, total = Counter(), 0, 0
-
-    for p in glob.glob(data_path):
-        z = np.load(p)
-        on, ft = z["frame_tab_onset"], z["frame_tab"]
-        mute = on.shape[-1] - 1                           # use 0 if class 0 = muted
-        onset_frame = (on.argmax(-1) != mute).any(-1)     # (T,) a note starts on this frame
-        for k in range(len(z["audio"]) // win):
-            f0 = -(-k * win // hop)
-            f1 = min(-(-(k + 1) * win // hop), len(onset_frame))
-            ev_hist[int(onset_frame[f0:f1].sum())] += 1   # distinct onset frames in the window
-            multi = False
-            for s in range(6):
-                c = ft[f0:f1, s].argmax(-1)
-                if len(set(c[c != mute])) > 1:            # two different frets on one string
-                    multi = True
-            conflicts += multi
-            total += 1
-
-    print("onset events per window:", sorted(ev_hist.items()))
-    print(f"windows where a string changes fret: {conflicts/total:.1%}")
-
-
-    files = glob.glob(data_path)          # same data_path as in your script
-
-    for tol in (0, 1, 2, 3, 4):
-        ds = WindowedGuitarSet(files, sr=22050, hop=512, cluster_frames=tol,
-                               preload=False, mute_index=-1)   # mute_index=0 if class 0 = muted
-        n = sum(ds.event_hist.values())
-        over2 = sum(v for e, v in ds.event_hist.items() if e > 2) / n
-        print(f"cluster_frames={tol}: {sorted(ds.event_hist.items())}  windows with >2 events: {over2:.2%}")
