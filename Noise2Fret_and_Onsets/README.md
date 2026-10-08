@@ -2,12 +2,13 @@
 
 This code repository is for the article _Noise2Fret: Event-Based Audio-To-Tab Guitar Transcription_ (on review)
 
-This repository contains all the necessary utilities to use our architecture. Find the code located inside the "./src" folder, and the weights of pre-trained models inside the "./weights" folder
+This repository contains all the necessary utilities to use our architecture. Find the code located inside the "./src" folder.
 
 <p align="center">
-<img src="../architecture.jpg" width="800"/>
+<img src="../model" width="800"/>
  <br/>
-  <em>Figure 1: Overview of the proposed Noise2Fret architecture at inference time. Starting from a Gaussian noise tensor in the continuous embedding space (T x SE), the model iteratively denoises the representation through a 1D convolutional U-Net comprising four encoder stages, a self-attention bottleneck, and a symmetric decoder with skip connections. Audio, spectral features, and timestep are injected as conditioning signals at each resolution level. The final denoised embedding is projected back to per-string class logits over F fret states, yielding the predicted tablature tensor (T x S x F).</em>
+  <em>Figure 1: Overview of the proposed Noise2Fret architecture at inference time. Two auxiliary heads process the waveform and spectral features: an event-count head, whose learned attention pooling is concatenated with mean pooling before the classifier, and an onset head with a dilated convolution, FiLM-conditioned on the count head’s soft distribution.
+Their outputs n and p(j) are combined into an additive bias on the cross-attention logits, applied in four U-Net blocks (shaded). Spectral features, the diffusion timestep, and padding mask are injected at every block.</em>
    </p>
 
 | Model               | # Params | FLOPs |
