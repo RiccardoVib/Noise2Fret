@@ -1,17 +1,17 @@
 #!/bin/bash
 
 DATA_DIR="./data"
-MODEL_PATH="./models/my_model.pt"
-NOISE_STEPS=1000
+MODEL_PATH="./models/"
+NOISE_STEPS=20
 BASE_CHANNELS=64
 EMBED_DIM=32
 BATCH_SIZE=128
-EPOCHS=60
+EPOCHS=1000
 LR=3e-4
 LOSSES_STR=[""]
-TRAIN_MODEL=False
+TRAIN_MODEL=True
 
-python starter.py \
+python diffusion_training.py \
   --data_dir $DATA_DIR \
   --model_path $MODEL_PATH \
   --noise_steps $NOISE_STEPS \
