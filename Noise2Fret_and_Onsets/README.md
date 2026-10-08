@@ -5,7 +5,7 @@ This code repository is for the article _Noise2Fret: Event-Based Audio-To-Tab Gu
 This repository contains all the necessary utilities to use our architecture. Find the code located inside the "./src" folder.
 
 <p align="center">
-<img src="../model" width="800"/>
+<img src="../model.png" width="800"/>
  <br/>
   <em>Figure 1: Overview of the proposed Noise2Fret architecture at inference time. Two auxiliary heads process the waveform and spectral features: an event-count head, whose learned attention pooling is concatenated with mean pooling before the classifier, and an onset head with a dilated convolution, FiLM-conditioned on the count head’s soft distribution.
 Their outputs n and p(j) are combined into an additive bias on the cross-attention logits, applied in four U-Net blocks (shaded). Spectral features, the diffusion timestep, and padding mask are injected at every block.</em>
