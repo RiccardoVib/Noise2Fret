@@ -27,8 +27,7 @@ This repository contains all the necessary utilities to use our architecture. Fi
 ```
 ./
 ├── src
-├── data_preprocess
-└── weights
+└── data_preprocess
 ```
 
 ### Contents
@@ -68,7 +67,7 @@ cd ./
 pip install -r requirements.txt
 ```
 
-To train models, use the ```training.py``` script or via SSH with ```run.sh```.
+To train models, use the ```diffusion_training.py```/ ```diffusion_training_GS.py``` scripts or via SSH with ```run_GOAT.sh```/```run_GS.sh```.
 Ensure you have loaded the dataset into the chosen datasets folder.
 
 ### Available Options
@@ -96,7 +95,7 @@ Ensure you have loaded the dataset into the chosen datasets folder.
 Example training case: 
 ```
 cd ./src
-python training.py \
+python diffusion_training.py \
   --data_dir ./data \
   --model_path ./models/my_model \
   --noise_steps 20 \
@@ -109,15 +108,15 @@ python training.py \
   --train_model True
 ```
 
-To only run inference on an existing pre-trained model, set the "train_model" flag to False. In this case, ensure you have the existing model and dataset (to use for inference) both in their respective directories with corresponding names.
+To run inference only on an existing pre-trained model, set the "train_model" flag to False. In this case, ensure you have the existing model and dataset (to use for inference) both in their respective directories with corresponding names.
 
 Example inference case:
 ```
 cd ./
-python training.py \
+python diffusion_training.py \
   --data_dir ./data \
   --model_path ./models/my_model \
-  --noise_steps 20 \
+  --noise_steps 1 \
   --base_channels 64 \
   --embed_dim 32 \
   --batch_size 128 \
@@ -129,11 +128,11 @@ python training.py \
 
 ### Training on Guitarset 
 
-To train models on Guitarset, use the ```training_guitarSet.py``` script 
+To train models on Guitarset, use the ```diffusion_training_GS.py``` script 
 
 ```
 cd ./src
-python training_guitarSet.py \
+python diffusion_training_GS.py \
   --data_dir ./data \
   --model_path ./models/my_model \
   --noise_steps 20 \
@@ -144,6 +143,22 @@ python training_guitarSet.py \
   --lr 3e-4 \
   --losses_str [""]
   --train_model True
+```
+
+and inference:
+```
+cd ./
+python diffusion_training_GS.py \
+  --data_dir ./data \
+  --model_path ./models/my_model \
+  --noise_steps 1 \
+  --base_channels 64 \
+  --embed_dim 32 \
+  --batch_size 128 \
+  --epochs 60 \
+  --lr 3e-4 \
+  --losses_str [""]
+  --train_model False
 ```
 
 ### Baseline Options
