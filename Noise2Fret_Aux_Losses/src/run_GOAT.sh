@@ -10,7 +10,7 @@ LR=3e-4
 LOSSES_STR=[""]
 
 TRAIN_NOISE_STEPS=20   # T used during training (defines the noise schedule)
-INFER_NOISE_STEPS=20   # sampling steps; may differ (e.g. DDIM / fewer steps)
+INFER_NOISE_STEPS=1   # sampling steps; may differ (e.g. DDIM / fewer steps)
 TRAIN_MODEL=True       # True = train, False = inference only
 
 if [ "$TRAIN_MODEL" = "True" ]; then
