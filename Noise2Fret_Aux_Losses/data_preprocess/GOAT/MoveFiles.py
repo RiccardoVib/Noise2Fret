@@ -1,7 +1,7 @@
 import os
 import shutil
 from pathlib import Path
-from Code.Utils.utils import find_folder_upward
+from Noise2Fret_Aux_Losses.src.utils import find_folder_upward
 
 # ── Config ────────────────────────────────────────────────────────────────────
 SPLITS = ["train", "test"]

@@ -1,0 +1,277 @@
+"""
+Code from https://github.com/KimSehun725/Tab-estimator/tree/master
+"""
+
+"""interpreter
+"""
+from re import A
+import numpy as np
+import pretty_midi
+from matplotlib import lines as mlines, pyplot as plt
+import tempfile
+import librosa
+import sox
+import os
+import pandas as pd
+import sys
+import soundfile as sf
+
+
+def save_small_wav(out_path, y, fs):
+    fhandle, tmp_file = tempfile.mkstemp(suffix='.wav')
+
+    sf.write(tmp_file, y, fs)
+
+    tfm = sox.Transformer()
+    tfm.convert(bitdepth=16)
+    tfm.build(tmp_file, out_path)
+    os.close(fhandle)
+    os.remove(tmp_file)
+
+
+def jams_to_midi(jam, tempo=120, q=1, quantization=0):
+    # q = 1: with pitch bend. q = 0: without pitch bend.
+    midi = pretty_midi.PrettyMIDI(initial_tempo=tempo)
+    annos = jam.search(namespace='note_midi')
+    if quantization > 0:
+        note_dur = 60 / tempo / quantization * 4
+    elif quantization < 0:
+        sys.exit(
+            "Quantization parameter must be 0(not qunatize) or integer greater than 1")
+
+    if len(annos) == 0:
+        annos = jam.search(namespace='pitch_midi')
+    string_name = ['E string', 'A string', 'D string',
+                   'G string', 'B string', 'e string']
+    for i, anno in enumerate(annos):
+        midi_ch = pretty_midi.Instrument(program=25, name=string_name[i])
+        for note in anno:
+            pitch = int(round(note.value))
+            bend_amount = int(round((note.value - pitch) * 4096))
+            j = 0
+            k = 0
+            if quantization != 0:
+                while not((j - 1/2) * note_dur < note.time and note.time < (j + 1/2) * note_dur):
+                    j = j + 1
+                st = j * note_dur
+
+                while not((k - 1/2) * note_dur < note.duration and note.duration < (k + 1/2) * note_dur):
+                    k = k + 1
+                if k == 0:
+                    k = 1
+                    #print("duration is 0, ", k)
+                dur = k * note_dur
+
+            else:
+                st = note.time
+                dur = note.duration
+
+            n = pretty_midi.Note(
+                velocity=100 + np.random.choice(range(-5, 5)),
+                pitch=pitch, start=st,
+                end=st + dur
+            )
+            pb = pretty_midi.PitchBend(pitch=bend_amount * q, time=st)
+            midi_ch.notes.append(n)
+            midi_ch.pitch_bends.append(pb)
+        if len(midi_ch.notes) != 0:
+            midi.instruments.append(midi_ch)
+    return midi
+
+
+def sonify_jams(jam, fpath=None, q=1):
+    midi = jams_to_midi(jam, q)  # q=1 : with pitchbend
+    signal_out = midi.fluidsynth()
+    if fpath != None:
+        save_small_wav(fpath, signal_out, 44100)
+    return signal_out, 44100
+
+
+def visualize_jams_note(jam, save_path=None):
+    style_dict = {0: 'r', 1: 'y', 2: 'b', 3: '#FF7F50', 4: 'g', 5: '#800080'}
+    string_dict = {0: 'E', 1: 'A', 2: 'D', 3: 'G', 4: 'B', 5: 'e'}
+    s = 0
+    handle_list = []
+    fig = plt.figure()
+    annos = jam.search(namespace='note_midi')
+    if len(annos) == 0:
+        annos = jam.search(namespace='pitch_midi')
+    for string_tran in annos:
+        handle_list.append(mlines.Line2D([], [], color=style_dict[s],
+                                         label=string_dict[s]))
+        for note in string_tran:
+            start_time = note[0]
+            midi_note = note[2]
+            dur = note[1]
+            plt.plot([start_time, start_time + dur],
+                     [midi_note, midi_note],
+                     style_dict[s], label=string_dict[s])
+        s += 1
+    plt.xlabel('Time (sec)')
+    plt.ylabel('Pitch (midi note number)')
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), handles=handle_list)
+    plt.title(jam.file_metadata.title)
+    plt.xlim(-0.5, jam.file_metadata.duration)
+    fig.set_size_inches(6, 3)
+    if save_path:
+        plt.savefig(save_path)
+
+
+def visualize_jams_pt(jam, save_path=None):
+    style_dict = {0: 'r', 1: 'y', 2: 'b', 3: '#FF7F50', 4: 'g', 5: '#800080'}
+    string_dict = {0: 'E', 1: 'A', 2: 'D', 3: 'G', 4: 'B', 5: 'e'}
+    s = 0
+    handle_list = []
+    # fig = plt.figure()
+    annos_pt = jam.search(namespace='pitch_contour')
+    # plot pitch
+    for string_tran in annos_pt:
+        handle_list.append(mlines.Line2D([], [], color=style_dict[s],
+                                         label=string_dict[s]))
+        df = string_tran.to_dataframe()
+        pitch_s = df.value.apply(
+            lambda x: librosa.hz_to_midi(float(x['frequency'])))
+        pitch_s.name = 'pitch'
+        df = pd.concat([df, pitch_s], axis=1)
+        plt.scatter(df.time, df.pitch, s=0.1, color=style_dict[s],
+                    label=string_dict[s])
+
+        s += 1
+
+    # plot Beat
+    anno_b = jam.search(namespace='beat_position')[0]
+    handle_list.append(mlines.Line2D([], [], color='k',
+                                     label='downbeat'))
+    handle_list.append(mlines.Line2D([], [], color='k', linestyle='dotted',
+                                     label='beat'))
+    for b in anno_b.data:
+        t = b.time
+        plt.axvline(t, linestyle='dotted', color='k', alpha=0.5)
+        if int(b.value['position']) == 1:
+            plt.axvline(t, linestyle='-', color='k', alpha=0.8)
+
+    # plt.xlabel('Time (sec)')
+    plt.ylabel('Pitch Contour (midi note number)')
+    # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), handles=handle_list)
+    plt.title(jam.file_metadata.title)
+    plt.xlim(-0.06, jam.file_metadata.duration)
+    # fig.set_size_inches(6, 3)
+    if save_path:
+        plt.savefig(save_path)
+
+
+def visualize_jams_onset(jam, save_path=None, low=None, high=None):
+    style_dict = {0: 'r', 1: 'y', 2: 'b', 3: '#FF7F50', 4: 'g', 5: '#800080'}
+    string_dict = {0: 'E', 1: 'A', 2: 'D', 3: 'G', 4: 'B', 5: 'e'}
+    s = 0
+    handle_list = []
+    # fig = plt.figure()
+    annos = jam.search(namespace='note_midi')
+    if len(annos) == 0:
+        annos = jam.search(namespace='pitch_midi')
+    for string_tran in annos:
+        handle_list.append(mlines.Line2D([], [], color=style_dict[s],
+                                         label=string_dict[s]))
+        for note in string_tran:
+
+            start_time = note[0]
+            if low and start_time < low:
+                continue
+            if high and start_time > high:
+                continue
+            plt.vlines(start_time, s, s+2, style_dict[s], label=string_dict[s])
+        s += 1
+
+    plt.xlabel('sec')
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), handles=handle_list)
+    plt.ylabel('String Number')
+
+    if not low:
+        low = -0.1
+    if not high:
+        high = jam.file_metadata.duration
+    plt.xlim(low, high)
+    # fig.set_size_inches(jam.file_metadata.duration / 2.5, 6)
+#    plt.title('Onsets of Individual Strings for excerpt of 00_Rock2-142-D_comp')
+    if save_path:
+        plt.savefig(save_path)
+
+
+def tablaturize_jams(jam, save_path=None):
+    str_midi_dict = {0: 40, 1: 45, 2: 50, 3: 55, 4: 59, 5: 64}
+    string_dict = {0: 'E', 1: 'A', 2: 'D', 3: 'G', 4: 'B', 5: 'e'}
+    style_dict = {0: 'r', 1: 'y', 2: 'b', 3: '#FF7F50', 4: 'g', 5: '#800080'}
+    s = 0
+    plt.figure(figsize=(20, 4), dpi=200)
+    handle_list = []
+
+    annos = jam.search(namespace='note_midi')
+    if len(annos) == 0:
+        annos = jam.search(namespace='pitch_midi')
+
+    for string_tran in annos:
+        handle_list.append(mlines.Line2D([], [], color=style_dict[s],
+                                         label=string_dict[s]))
+        for note in string_tran:
+            start_time = note[0]
+            midi_note = note[2]
+            fret = int(round(midi_note - str_midi_dict[s]))
+            plt.scatter(start_time, s+1, marker="${}$".format(fret),
+                        color=style_dict[s])
+        s += 1
+
+    # plot Beat
+    anno_b = jam.search(namespace='beat_position')[0]
+    for b in anno_b.data:
+        t = b.time
+        plt.axvline(t, linestyle='dotted', color='k', alpha=0.5)
+        if int(b.value['position']) == 1:
+            plt.axvline(t, linestyle='-', color='k', alpha=0.8)
+
+    handle_list.append(mlines.Line2D([], [], color='k',
+                                     label='downbeat'))
+    handle_list.append(mlines.Line2D([], [], color='k', linestyle='dotted',
+                                     label='beat'))
+    plt.xlabel('Time (sec)')
+    plt.ylabel('String Number')
+    plt.title(jam.file_metadata.title)
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2),
+               handles=handle_list, ncol=8)
+    plt.xlim(-0.5, jam.file_metadata.duration)
+    # fig.set_size_inches(6, 3)
+
+    if save_path:
+        plt.savefig(save_path)
+
+
+def visualize_chords(jam, save_path=None):
+
+    chord_ann = jam.search(namespace='chord')[1]
+
+    for chord in chord_ann.data:
+        t = chord.time
+
+    # for string_tran in annos:
+    #     for note in string_tran:
+    #         start_time = note[0]
+    #         midi_note = note[2]
+    #         fret = int(round(midi_note - str_midi_dict[s]))
+    #         plt.scatter(start_time, s+1, marker="${}$".format(fret), color =
+    #         style_dict[s])
+    #     s += 1
+    #
+    # # plot Beat
+    # anno_b = jam.search(namespace='beat_position')[0]
+    # for b in anno_b.data:
+    #     t = b.time
+    #     plt.axvline(t, linestyle='dotted', color='k', alpha=0.5)
+    #     if int(b.value['position']) == 1:
+    #         plt.axvline(t, linestyle='-', color='k', alpha=0.8)
+
+    plt.xlabel('Time (sec)')
+    plt.ylabel('String Number')
+    # plt.title(jam.file_metadata.title)
+    plt.xlim(-0.5, jam.file_metadata.duration)
+    # fig.set_size_inches(6, 3)
+    if save_path:
+        plt.savefig(save_path)

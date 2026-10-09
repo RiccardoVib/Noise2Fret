@@ -52,10 +52,23 @@ The script retrieves dataset information and automatically creates a new directo
 
 - .csv file — stores metadata and tab information
 
-The output directory is generated at runtime and organized per dataset entry.
+The output directory is generated at runtime and organized per dataset entry. 
+
+Before to run set ROOT_DIR_TRAIN and ROOT_DIR_TEST to the related folders ```BuildDataset.py```.
 
 ```
-cd ./src/data_preprocess
+cd ./src/data_preprocess/GOAT
+python BuildDataset.py
+```
+
+# How To Preprocess Dataset (GOAT)
+
+The script extract information from ```.jams``` and automatically creates a new directory containing the .npz files for each item in the dataset:
+
+Before to run set ROOT_DIR GuitarSet folder in ```BuildDataset.py```.
+
+```
+cd ./src/data_preprocess/GuitarSet
 python BuildDataset.py
 ```
 
